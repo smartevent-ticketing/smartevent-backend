@@ -19,9 +19,12 @@ CREATE TABLE roles (
 );
 
 CREATE TABLE user_roles (
+                            id UUID PRIMARY KEY,
                             user_id UUID NOT NULL REFERENCES users(id),
                             role_id UUID NOT NULL REFERENCES roles(id),
-                            PRIMARY KEY (user_id, role_id)
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            UNIQUE (user_id, role_id)
 );
 
 INSERT INTO roles(id, name) VALUES

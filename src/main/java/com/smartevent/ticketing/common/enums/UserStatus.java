@@ -1,4 +1,7 @@
 package com.smartevent.ticketing.common.enums;
 
-public class UserStatus {
+public enum UserStatus {
+    ACTIVE,
+    DISABLED,
+    DELETED
 }
