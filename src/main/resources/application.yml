@@ -3,9 +3,9 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/smart_event
-    username: postgres
-    password: tdhuy0909
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -26,10 +26,10 @@ spring:
       port: 6379
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${SPRING_RABBITMQ_HOST}
+    port: ${SPRING_RABBITMQ_PORT}
+    username: ${SPRING_RABBITMQ_USERNAME}
+    password: ${SPRING_RABBITMQ_PASSWORD}
 
 management:
   endpoints:
@@ -40,3 +40,11 @@ management:
     health:
       probes:
         enabled: true
+
+app:
+  storage:
+    minio:
+      endpoint: ${APP_MINIO_ENDPOINT}
+      access-key: ${APP_MINIO_ACCESS_KEY}
+      secret-key: ${APP_MINIO_SECRET_KEY}
+      bucket: ${APP_MINIO_BUCKET}
