@@ -82,7 +82,7 @@ public class GlobalExceptionHandler {
                 .status(errorCode.httpStatus())
                 .body(ErrorResponse.of(
                         errorCode.code(),
-                        exception.getMessage(),
+                        errorCode.defaultMessage(),
                         request.getRequestURI()
                 ));
     }
