@@ -1,4 +1,14 @@
 package com.smartevent.ticketing.common.validation;
 
-public class ValidationGroups {
+public final class ValidationGroups {
+
+    private ValidationGroups() {
+        throw new UnsupportedOperationException("Utility class and cannot be instantiated");
+    }
+
+    public interface OnCreate {
+    }
+
+    public interface OnUpdate {
+    }
 }

@@ -48,3 +48,6 @@ app:
       access-key: ${APP_MINIO_ACCESS_KEY}
       secret-key: ${APP_MINIO_SECRET_KEY}
       bucket: ${APP_MINIO_BUCKET}
+  date:
+    default-format: "yyyy-MM-dd HH:mm:ss"
+    timezone: "Asia/Ho_Chi_Minh"

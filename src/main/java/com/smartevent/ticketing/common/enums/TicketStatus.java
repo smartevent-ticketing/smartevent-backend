@@ -1,4 +1,10 @@
 package com.smartevent.ticketing.common.enums;
 
-public class TicketStatus {
+public enum TicketStatus {
+    ISSUED,
+    USED,
+    CANCELLED,
+    REFUNDED,
+    RESALE_LISTED,
+    TRANSFERRED
 }

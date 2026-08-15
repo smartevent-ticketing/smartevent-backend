@@ -4,11 +4,11 @@ import com.smartevent.ticketing.common.api.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,6 +32,22 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDeniedException(
+            AccessDeniedException exception,
+            HttpServletRequest request
+    ) {
+        ErrorCode errorCode = ErrorCode.ACCESS_DENIED;
+
+        return ResponseEntity
+                .status(errorCode.httpStatus())
+                .body(ErrorResponse.of(
+                        errorCode.code(),
+                        "Bạn không có quyền truy cập tài nguyên này",
+                        request.getRequestURI()
+                ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException exception,
@@ -49,13 +65,13 @@ public class GlobalExceptionHandler {
                 .status(errorCode.httpStatus())
                 .body(ErrorResponse.of(
                         errorCode.code(),
-                        exception.getMessage(),
+                        errorCode.defaultMessage(),
                         request.getRequestURI(),
                         errors
                 ));
     }
 
-    @ExceptionHandler (ConstraintViolationException.class)
+    @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolationException(
             ConstraintViolationException exception,
             HttpServletRequest request
@@ -71,7 +87,7 @@ public class GlobalExceptionHandler {
                 ));
     }
 
-    @ExceptionHandler (Exception.class)
+    @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(
             Exception exception,
             HttpServletRequest request

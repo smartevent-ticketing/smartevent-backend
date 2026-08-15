@@ -4,7 +4,6 @@ import org.springframework.data.domain.Page;
 
 import java.util.List;
 
-// Gợi ý:
 public record PageResponse<T>(
         List<T> content,
         int page,
@@ -16,6 +15,17 @@ public record PageResponse<T>(
     public static <T> PageResponse<T> from(Page<T> page) {
         return new PageResponse<>(
                 page.getContent(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isLast()
+        );
+    }
+
+    public static <T, R> PageResponse<R> from(Page<T> page, List<R> content) {
+        return new PageResponse<>(
+                content,
                 page.getNumber(),
                 page.getSize(),
                 page.getTotalElements(),

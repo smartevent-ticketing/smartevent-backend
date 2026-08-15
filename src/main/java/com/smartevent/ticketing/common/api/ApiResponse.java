@@ -12,7 +12,15 @@ public record ApiResponse<T>(
         return new ApiResponse<>(true, "OK", data, Instant.now());
     }
 
-    public static  <T> ApiResponse<T> success(String message, T data) {
+    public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>(true, message, data, Instant.now());
+    }
+
+    public static ApiResponse<Void> ok() {
+        return new ApiResponse<>(true, "OK", null, Instant.now());
+    }
+
+    public static ApiResponse<Void> ok(String message) {
+        return new ApiResponse<>(true, message, null, Instant.now());
     }
 }

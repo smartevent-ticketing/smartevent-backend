@@ -1,4 +1,10 @@
 package com.smartevent.ticketing.common.enums;
 
-public class PaymentStatus {
+public enum PaymentStatus {
+    INITIATED,
+    PENDING,
+    SUCCESS,
+    FAILED,
+    CANCELLED,
+    REFUNDED
 }

@@ -8,7 +8,26 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND("RESOURCE_NOT_FOUND", "Resource not found", HttpStatus.NOT_FOUND),
     ACCESS_DENIED("ACCESS_DENIED", "Access denied", HttpStatus.FORBIDDEN),
     UNAUTHORIZED("UNAUTHORIZED", "Unauthorized", HttpStatus.UNAUTHORIZED),
-    BUSINESS_RULE_VIOLATION("BUSINESS_RULE_VIOLATION", "Business rule violation", HttpStatus.BAD_REQUEST);
+    BUSINESS_RULE_VIOLATION("BUSINESS_RULE_VIOLATION", "Business rule violation", HttpStatus.BAD_REQUEST),
+
+    //Identity
+    DUPLICATE_EMAIL("DUPLICATE_EMAIL", "Email already exists", HttpStatus.BAD_REQUEST),
+    INVALID_CREDENTIALS("INVALID_CREDENTIALS", "Invalid credentials", HttpStatus.UNAUTHORIZED),
+    TOKEN_EXPIRED("TOKEN_EXPIRED", "Token expired", HttpStatus.UNAUTHORIZED),
+    ACCOUNT_DISABLED("ACCOUNT_DISABLED", "Account disabled", HttpStatus.UNAUTHORIZED),
+
+    /*// Event
+EVENT_NOT_PUBLISHED, VENUE_TIME_CONFLICT,
+// Booking (Phase quan trọng nhất)
+SEAT_ALREADY_HELD, INVENTORY_NOT_ENOUGH, SALE_PHASE_CLOSED,
+MAX_PER_ORDER_EXCEEDED, MAX_PER_USER_EXCEEDED,
+RESERVATION_EXPIRED, RESERVATION_ALREADY_EXISTS,
+// Payment
+PAYMENT_AMOUNT_MISMATCH, DUPLICATE_WEBHOOK,
+// Ticket
+TICKET_ALREADY_USED, TICKET_NOT_TRANSFERABLE*/
+
+    ;
 
     private final String code;
     private final String defaultMessage;
