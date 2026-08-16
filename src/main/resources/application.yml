@@ -2,6 +2,11 @@ server:
   port: 8080
 
 spring:
+  config:
+    import:
+      - optional:file:./application-jwt.yml
+
+
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -42,6 +47,10 @@ management:
         enabled: true
 
 app:
+  jwt:
+    secret: ${APP_JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    access-token-expiration-ms: ${APP_JWT_ACCESS_EXPIRATION_MS:900000} # 15 phút (15 * 60 * 1000)
+    refresh-token-expiration-ms: ${APP_JWT_REFRESH_EXPIRATION_MS:604800000} # 7 ngày (7 * 24 * 60 * 60 * 1000)
   storage:
     minio:
       endpoint: ${APP_MINIO_ENDPOINT}

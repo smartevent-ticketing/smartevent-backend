@@ -5,10 +5,16 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "roles")
 public class Role extends BaseEntity {
@@ -19,10 +25,7 @@ public class Role extends BaseEntity {
     @OneToMany(mappedBy = "role")
     private Set<UserRole> userRoles = new HashSet<>();
 
-    protected Role() {
-    }
-
-    public String getName() {
-        return name;
+    public Role(String name) {
+        this.name = name;
     }
 }

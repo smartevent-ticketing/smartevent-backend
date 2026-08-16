@@ -1,5 +1,6 @@
 package com.smartevent.ticketing.common.security;
 
+import com.smartevent.ticketing.infrastructure.security.UserPrincipal;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,7 +15,6 @@ public final class SecurityUtils {
     }
 
     public static Optional<Authentication> getAuthentication() {
-
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
@@ -22,11 +22,9 @@ public final class SecurityUtils {
         }
 
         return Optional.empty();
-
     }
 
-    public static Optional<UUID>  getCurrentUserId() {
-
+    public static Optional<UUID> getCurrentUserId() {
         Optional<Authentication> authOpt = getAuthentication();
 
         if (authOpt.isEmpty()) {
@@ -34,22 +32,21 @@ public final class SecurityUtils {
         }
 
         Authentication auth = authOpt.get();
+        Object principal = auth.getPrincipal();
 
-        // Lấy chuỗi ID của người dùng từ Authentication
-        String userIdStr = auth.getName();
-
-        try {
-            UUID userId = UUID.fromString(userIdStr);
-            return Optional.of(userId);
+        if (principal instanceof UserPrincipal userPrincipal) {
+            return Optional.ofNullable(userPrincipal.getId());
         }
-        catch (IllegalArgumentException e) {
+
+        String userIdStr = auth.getName();
+        try {
+            return Optional.of(UUID.fromString(userIdStr));
+        } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
-
     }
 
     public static Optional<String> getCurrentUserEmail() {
-
         Optional<Authentication> authOpt = getAuthentication();
 
         if (authOpt.isEmpty()) {
@@ -57,20 +54,21 @@ public final class SecurityUtils {
         }
 
         Authentication auth = authOpt.get();
+        Object principal = auth.getPrincipal();
+
+        if (principal instanceof UserPrincipal userPrincipal) {
+            return Optional.ofNullable(userPrincipal.getEmail());
+        }
 
         String email = auth.getName();
-
         if (email != null && !email.isBlank()) {
             return Optional.of(email);
         }
 
         return Optional.empty();
-
     }
 
     public static boolean hasRole(String roleName) {
-
-        // Kiểm tra đầu vào của 2 biến
         if (roleName == null || roleName.isBlank()) {
             return false;
         }

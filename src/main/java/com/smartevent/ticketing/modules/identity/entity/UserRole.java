@@ -2,7 +2,13 @@ package com.smartevent.ticketing.modules.identity.entity;
 
 import com.smartevent.ticketing.common.entity.BaseEntity;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "user_roles")
 public class UserRole extends BaseEntity {
@@ -15,15 +21,8 @@ public class UserRole extends BaseEntity {
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
-    protected UserRole() {
-    }
-
     public UserRole(User user, Role role) {
         this.user = user;
         this.role = role;
-    }
-
-    public Role getRole() {
-        return role;
     }
 }
