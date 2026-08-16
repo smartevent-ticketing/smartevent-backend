@@ -1,4 +1,21 @@
 package com.smartevent.ticketing.modules.storage.dto.response;
 
-public class FileUploadResponse {
+import com.smartevent.ticketing.common.enums.FileVisibility;
+import com.smartevent.ticketing.modules.storage.entity.FileEntity;
+
+import java.time.Instant;
+import java.util.UUID;
+
+public record FileUploadResponse (
+        UUID id,
+        String originName,
+        String contentType,
+        Long fullSize,
+        String url,
+        FileVisibility visibility,
+        Instant createdAt
+) {
+    public static FileUploadResponse of(FileEntity entity, String url) {
+        return new FileUploadResponse(entity.getId(), entity.getOriginalName(), entity.getContentType(), entity.getFileSize(), url, entity.getVisibility(), entity.getCreatedAt());
+    }
 }

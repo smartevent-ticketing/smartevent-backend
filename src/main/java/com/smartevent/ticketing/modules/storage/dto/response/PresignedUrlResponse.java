@@ -1,4 +1,11 @@
 package com.smartevent.ticketing.modules.storage.dto.response;
 
-public class PresignedUrlResponse {
+import java.time.Instant;
+import java.util.UUID;
+
+public record PresignedUrlResponse (
+        UUID fileId,
+        String url,
+        Instant expiresAt
+) {
 }
