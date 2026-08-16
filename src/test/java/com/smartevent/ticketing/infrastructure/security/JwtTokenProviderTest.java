@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JwtTokenProviderTest {
 
     private JwtTokenProvider jwtTokenProvider;
-    private final String secretKey = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
+    private final String secretKey = "this_is_a_dummy_secret_key_for_unit_tests_only_do_not_use_in_prod_123456";
     private final long accessTokenExpirationMs = 60000; // 1 phút
     private final long refreshTokenExpirationMs = 604800000; // 7 ngày
 
