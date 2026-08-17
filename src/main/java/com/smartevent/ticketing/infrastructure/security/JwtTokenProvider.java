@@ -41,7 +41,7 @@ public class JwtTokenProvider {
         try {
             // Thử giải mã Base64 trước
             keyBytes = Decoders.BASE64.decode(jwtSecret);
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             // Nếu không phải Base64, lấy raw bytes UTF-8
             keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
         }
