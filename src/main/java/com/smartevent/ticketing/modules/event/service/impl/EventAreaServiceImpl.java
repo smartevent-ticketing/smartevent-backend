@@ -37,13 +37,15 @@ public class EventAreaServiceImpl implements EventAreaService {
         /*Tìm event theo eventId và kiểm tra quyền sở hữu*/
         Event event = getEventAndVerifyAccess(eventId, currentUserId, isAdmin);
 
-
+        // Kiểm tra trạng thái
         validateEventStateForModification(event);
 
+        //Kiểm tra có trùng sự kiện hay tên chưa
         if (eventAreaRepository.existsByEventIdAndName(eventId, request.name())) {
             throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Khu vực '" + request.name() + "' đã tồn tại trong sự kiện");
         }
 
+        // Kiểm tra số lượng ghế ngồi tại địa điểm đó
         validateVenueCapacity(event, request.capacity(), null);
 
         EventArea area = new EventArea(
@@ -68,6 +70,7 @@ public class EventAreaServiceImpl implements EventAreaService {
             throw new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện");
         }
 
+        // Tạo 1 list khu vực/khán đài
         List<EventArea> areas = eventAreaRepository.findByEventIdOrderBySortOrderAsc(eventId);
 
         return areas.stream()

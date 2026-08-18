@@ -62,6 +62,7 @@ public class EventSeatServiceImpl implements EventSeatService {
                     ") vượt quá sức chứa tối đa của khu vực (" + area.getCapacity() + ")");
         }
 
+        // Vòng lặp sinh ghế tự động
         List<EventSeat> seats = new ArrayList<>();
         for (char r = startRow; r <= endRow; r++) {
             for (int s = 1; s <= request.seatsPerRow(); s++) {
