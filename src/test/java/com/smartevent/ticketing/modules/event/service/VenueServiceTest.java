@@ -4,7 +4,7 @@ import com.smartevent.ticketing.common.error.ErrorCode;
 import com.smartevent.ticketing.modules.event.dto.request.VenueRequest;
 import com.smartevent.ticketing.modules.event.dto.response.VenueResponse;
 import com.smartevent.ticketing.modules.event.entity.Venue;
-import com.smartevent.ticketing.modules.event.exception.VenueException;
+import com.smartevent.ticketing.modules.event.exception.EventException;
 import com.smartevent.ticketing.modules.event.repository.VenueRepository;
 import com.smartevent.ticketing.modules.event.service.impl.VenueServiceImpl;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +67,7 @@ class VenueServiceTest {
 
         when(venueRepository.existsByNameAndCity("Nhà hát Lớn", "Hà Nội")).thenReturn(true);
 
-        VenueException exception = assertThrows(VenueException.class, () ->
+        EventException exception = assertThrows(EventException.class, () ->
                 venueService.createVenue(request)
         );
 

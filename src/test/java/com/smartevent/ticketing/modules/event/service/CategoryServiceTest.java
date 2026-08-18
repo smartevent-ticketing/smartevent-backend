@@ -4,7 +4,7 @@ import com.smartevent.ticketing.common.error.ErrorCode;
 import com.smartevent.ticketing.modules.event.dto.request.CategoryRequest;
 import com.smartevent.ticketing.modules.event.dto.response.CategoryResponse;
 import com.smartevent.ticketing.modules.event.entity.Category;
-import com.smartevent.ticketing.modules.event.exception.CategoryException;
+import com.smartevent.ticketing.modules.event.exception.EventException;
 import com.smartevent.ticketing.modules.event.repository.CategoryRepository;
 import com.smartevent.ticketing.modules.event.service.impl.CategoryServiceImpl;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +60,7 @@ class CategoryServiceTest {
 
         when(categoryRepository.existsBySlug("am-nhac")).thenReturn(true);
 
-        CategoryException exception = assertThrows(CategoryException.class, () ->
+        EventException exception = assertThrows(EventException.class, () ->
                 categoryService.createCategory(request)
         );
 
@@ -104,7 +104,7 @@ class CategoryServiceTest {
     void getCategoryBySlug_NotFound_ThrowsResourceNotFound() {
         when(categoryRepository.findBySlug("khong-ton-tai")).thenReturn(Optional.empty());
 
-        CategoryException exception = assertThrows(CategoryException.class, () ->
+        EventException exception = assertThrows(EventException.class, () ->
                 categoryService.getCategoryBySlug("khong-ton-tai")
         );
 
@@ -144,7 +144,7 @@ class CategoryServiceTest {
         when(categoryRepository.findById(id)).thenReturn(Optional.of(existingCategory));
         when(categoryRepository.existsBySlug("the-thao")).thenReturn(true);
 
-        CategoryException exception = assertThrows(CategoryException.class, () ->
+        EventException exception = assertThrows(EventException.class, () ->
                 categoryService.updateCategory(id, updateRequest)
         );
 

@@ -4,8 +4,7 @@ import com.smartevent.ticketing.common.error.ErrorCode;
 import com.smartevent.ticketing.modules.event.dto.request.VenueRequest;
 import com.smartevent.ticketing.modules.event.dto.response.VenueResponse;
 import com.smartevent.ticketing.modules.event.entity.Venue;
-import com.smartevent.ticketing.modules.event.exception.CategoryException;
-import com.smartevent.ticketing.modules.event.exception.VenueException;
+import com.smartevent.ticketing.modules.event.exception.EventException;
 import com.smartevent.ticketing.modules.event.repository.VenueRepository;
 import com.smartevent.ticketing.modules.event.service.VenueService;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,7 @@ public class VenueServiceImpl implements VenueService {
     public VenueResponse createVenue(VenueRequest request) {
 
         if (venueRepository.existsByNameAndCity(request.name(), request.city())) {
-            throw new VenueException(ErrorCode.BUSINESS_RULE_VIOLATION, "Địa điểm đã tồn tại");
+            throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Địa điểm đã tồn tại");
         }
 
         Venue venue = new Venue(
@@ -62,7 +61,7 @@ public class VenueServiceImpl implements VenueService {
 
         List<Venue> venues = venueRepository.findByCityIgnoreCaseAndStatus(city, "ACTIVE");
         if (venues == null) {
-            throw new VenueException(
+            throw new EventException(
                 ErrorCode.RESOURCE_NOT_FOUND,
                 "Không tìm thấy danh mục");
         }
@@ -76,7 +75,7 @@ public class VenueServiceImpl implements VenueService {
     public VenueResponse getVenueById(UUID id) {
 
         Venue venue = venueRepository.findById(id)
-                .orElseThrow(() -> new VenueException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy địa điểm"
                 ));
@@ -89,7 +88,7 @@ public class VenueServiceImpl implements VenueService {
     public VenueResponse updateVenue(UUID id, VenueRequest request) {
 
         Venue venue = venueRepository.findById(id)
-                .orElseThrow(() -> new VenueException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy địa điểm"
                 ));
@@ -98,7 +97,7 @@ public class VenueServiceImpl implements VenueService {
         boolean isSameVenue = venue.getName().equals(request.name()) && venue.getCity().equals(request.city());
 
         if (isDuplicate && !isSameVenue) {
-            throw new VenueException(ErrorCode.BUSINESS_RULE_VIOLATION, "Địa điểm đã tồn tại");
+            throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Địa điểm đã tồn tại");
         }
 
         venue.setName(request.name());
@@ -119,7 +118,7 @@ public class VenueServiceImpl implements VenueService {
     public void deleteVenue(UUID id) {
 
         Venue venue = venueRepository.findById(id)
-                .orElseThrow(() -> new VenueException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy địa điểm"));
 

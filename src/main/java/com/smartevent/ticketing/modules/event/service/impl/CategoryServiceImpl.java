@@ -5,7 +5,7 @@ import com.smartevent.ticketing.common.error.ErrorCode;
 import com.smartevent.ticketing.modules.event.dto.request.CategoryRequest;
 import com.smartevent.ticketing.modules.event.dto.response.CategoryResponse;
 import com.smartevent.ticketing.modules.event.entity.Category;
-import com.smartevent.ticketing.modules.event.exception.CategoryException;
+import com.smartevent.ticketing.modules.event.exception.EventException;
 import com.smartevent.ticketing.modules.event.repository.CategoryRepository;
 import com.smartevent.ticketing.modules.event.service.CategoryService;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,7 @@ public class CategoryServiceImpl implements CategoryService {
         String slug = slugify.slugify(request.name());
 
         if(categoryRepository.existsBySlug(slug)) {
-            throw new CategoryException(
+            throw new EventException(
                     ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Danh mục này đã tồn tại");
         }
@@ -64,7 +64,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse getCategoryBySlug(String slug) {
 
         Category category = categoryRepository.findBySlug(slug)
-                .orElseThrow(() -> new CategoryException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy danh mục"
                 ));
@@ -77,14 +77,14 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(UUID id, CategoryRequest request) {
 
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new CategoryException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy danh mục"));
 
         String newSlug = slugify.slugify(request.name());
 
         if (!newSlug.equals(category.getSlug()) && categoryRepository.existsBySlug(newSlug)) {
-            throw new CategoryException(
+            throw new EventException(
                     ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Slug đã bị trùng"
             );
@@ -104,7 +104,7 @@ public class CategoryServiceImpl implements CategoryService {
     public void deleteCategory(UUID id) {
 
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new CategoryException(
+                .orElseThrow(() -> new EventException(
                         ErrorCode.RESOURCE_NOT_FOUND,
                         "Không tìm thấy danh mục"));
 
