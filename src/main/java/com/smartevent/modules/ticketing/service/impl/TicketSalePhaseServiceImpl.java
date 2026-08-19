@@ -18,6 +18,7 @@ import com.smartevent.modules.ticketing.exception.TicketingException;
 import com.smartevent.modules.ticketing.repository.TicketPhaseRuleRepository;
 import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
+import com.smartevent.modules.ticketing.service.InventoryService;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,8 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
     private final EventAreaRepository eventAreaRepository;
     private final TicketSalePhaseRepository ticketSalePhaseRepository;
     private final TicketPhaseRuleRepository ticketPhaseRuleRepository;
+
+    private final InventoryService inventoryService; // Thêm trường này
 
     @Override
     @Transactional
@@ -75,6 +78,10 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
                 request.status()
         );
         TicketSalePhase saved = ticketSalePhaseRepository.save(phase);
+
+        // ✅ TỰ ĐỘNG KHỞI TẠO TỒN KHO CHO ĐỢT MỞ BÁN NÀY
+        inventoryService.initCounter(event.getId(), area.getId(), ticketTypeId, saved.getId(), saved.getQuantity());
+
         log.info("Tạo đợt mở bán mới: {} (ID: {}) cho loại vé {}", saved.getName(), saved.getId(), ticketTypeId);
         return TicketSalePhaseResponse.of(saved, ticketType.getName(), List.of());
     }
@@ -167,7 +174,13 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
 
         phase.setName(request.name());
         phase.setPrice(request.price());
-        phase.setQuantity(request.quantity());
+
+        // 👉 ĐẶT VÀO CHÍNH CHỖ NÀY (Thay thế cho dòng phase.setQuantity cũ):
+        if (!phase.getQuantity().equals(request.quantity())) {
+            inventoryService.updateTotalQuantity(id, request.quantity());
+            phase.setQuantity(request.quantity());
+        }
+
         phase.setSaleStartAt(request.saleStartAt());
         phase.setSaleEndAt(request.saleEndAt());
         if (request.maxPerOrder() != null) {
