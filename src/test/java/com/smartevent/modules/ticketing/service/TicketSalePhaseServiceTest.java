@@ -57,6 +57,9 @@ class TicketSalePhaseServiceTest {
     @Mock
     private TicketPhaseRuleRepository ticketPhaseRuleRepository;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private TicketSalePhaseServiceImpl ticketSalePhaseService;
 
@@ -120,6 +123,9 @@ class TicketSalePhaseServiceTest {
         assertEquals("Early Bird", response.name());
         assertEquals("Vé VIP", response.ticketTypeName());
         verify(ticketSalePhaseRepository, times(1)).save(any(TicketSalePhase.class));
+
+        // ✅ VERIFY XEM CÓ TỰ ĐỘNG KHỞI TẠO TỒN KHO KHÔNG:
+        verify(inventoryService, times(1)).initCounter(eq(eventId), eq(areaId), eq(ticketTypeId), any(), eq(200));
     }
 
     @Test
