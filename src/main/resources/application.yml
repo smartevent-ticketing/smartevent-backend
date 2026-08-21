@@ -47,6 +47,35 @@ management:
         enabled: true
 
 app:
+  payment:
+    vnpay:
+      tmn-code: ${VNPAY_TMN_CODE:DEMOVNPAY}
+      hash-secret: ${VNPAY_HASH_SECRET:SECRETKEY123456789}
+      pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/v1/payments/vnpay/return}
+      ipn-url: ${VNPAY_IPN_URL:http://localhost:8080/api/v1/payments/vnpay/ipn}
+      version: "2.1.0"
+      command: "pay"
+    momo:
+      partner-code: ${MOMO_PARTNER_CODE:MOMO}
+      access-key: ${MOMO_ACCESS_KEY:F8BBA842ECF85}
+      secret-key: ${MOMO_SECRET_KEY:K951B6PE1waDMi640xX0huZDAm&8fStatic}
+      endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
+      return-url: ${MOMO_RETURN_URL:http://localhost:8080/api/v1/payments/momo/return}
+      ipn-url: ${MOMO_IPN_URL:http://localhost:8080/api/v1/payments/momo/ipn}
+    zalopay:
+      app-id: ${ZALOPAY_APP_ID:2553}
+      key1: ${ZALOPAY_KEY1:PcY4iZIKrnbtLENg5BQvdEwDuKjvMwdu}
+      key2: ${ZALOPAY_KEY2:kLtgPl8HHhfvMuY2tcKbgFn9pInnFUba}
+      endpoint: ${ZALOPAY_ENDPOINT:https://sb-openapi.zalopay.vn/v2/create}
+      callback-url: ${ZALOPAY_CALLBACK_URL:http://localhost:8080/api/v1/payments/zalopay/callback}
+    paypal:
+      client-id: ${PAYPAL_CLIENT_ID:YOUR_PAYPAL_CLIENT_ID}
+      secret-key: ${PAYPAL_SECRET_KEY:YOUR_PAYPAL_SECRET_KEY}
+      base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+      mode: sandbox
+      return-url: ${PAYPAL_RETURN_URL:http://localhost:8080/api/v1/payments/paypal/success}
+      cancel-url: ${PAYPAL_CANCEL_URL:http://localhost:8080/api/v1/payments/paypal/cancel}
   storage:
     minio:
       endpoint: ${APP_MINIO_ENDPOINT}

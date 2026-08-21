@@ -95,7 +95,7 @@ class ReservationServiceTest {
         // Sample Event PUBLISHED
         sampleEvent = new Event();
         sampleEvent.setId(eventId);
-        sampleEvent.setTitle("Concert Âm Nhạc");
+        sampleEvent.setName("Concert Âm Nhạc"); // ✅ Sửa thành setName
         sampleEvent.setStatus(EventStatus.PUBLISHED);
 
         // Standing Area
@@ -115,7 +115,7 @@ class ReservationServiceTest {
         seatedArea.setCapacity(200);
 
         // Ticket Type
-        sampleTicketType = new TicketType(eventId, areaId, "Vé VIP", "Mô tả", true, null, null);
+        sampleTicketType = new TicketType(eventId, areaId, "Vé VIP", "Mô tả", "ACTIVE"); // ✅ Sửa constructor 5 tham số
         sampleTicketType.setId(ticketTypeId);
 
         // Ticket Sale Phase
@@ -128,7 +128,7 @@ class ReservationServiceTest {
         samplePhase.setId(salePhaseId);
 
         // Event Seat AVAILABLE
-        sampleSeat = new EventSeat(areaId, "A-12", 1, 12, SeatType.VIP, SeatStatus.AVAILABLE);
+        sampleSeat = new EventSeat(areaId, "A", "12", "A-12", SeatStatus.AVAILABLE, null); // ✅ Sửa constructor 6 tham số
         sampleSeat.setId(seatId);
 
         // Reservation Sample

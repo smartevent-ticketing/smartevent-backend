@@ -38,8 +38,17 @@ public enum ErrorCode {
     RESERVATION_EXPIRED("RESERVATION_EXPIRED", "Reservation has expired", HttpStatus.BAD_REQUEST),
     RESERVATION_ALREADY_EXISTS("RESERVATION_ALREADY_EXISTS", "User already has an active pending reservation for this event", HttpStatus.BAD_REQUEST),
 
-    // Payment & Ticket
+    // Ordering (Module 6)
+    ORDER_NOT_FOUND("ORDER_NOT_FOUND", "Order not found", HttpStatus.NOT_FOUND),
+    ORDER_EXPIRED("ORDER_EXPIRED", "Order has expired", HttpStatus.BAD_REQUEST),
+    ORDER_INVALID_STATUS("ORDER_INVALID_STATUS", "Order is not in a valid status for this operation", HttpStatus.BAD_REQUEST),
+
+    // Payment & Ticket (Module 6 & 7)
+    PAYMENT_NOT_FOUND("PAYMENT_NOT_FOUND", "Payment record not found", HttpStatus.NOT_FOUND),
     PAYMENT_AMOUNT_MISMATCH("PAYMENT_AMOUNT_MISMATCH", "Payment amount does not match order amount", HttpStatus.BAD_REQUEST),
+    PAYMENT_SIGNATURE_INVALID("PAYMENT_SIGNATURE_INVALID", "Invalid payment signature checksum", HttpStatus.BAD_REQUEST),
+    PAYMENT_ALREADY_PROCESSED("PAYMENT_ALREADY_PROCESSED", "Payment has already been processed", HttpStatus.BAD_REQUEST),
+    PAYMENT_FAILED("PAYMENT_FAILED", "Payment transaction failed", HttpStatus.BAD_REQUEST),
     DUPLICATE_WEBHOOK("DUPLICATE_WEBHOOK", "Webhook event has already been processed", HttpStatus.BAD_REQUEST),
     TICKET_ALREADY_USED("TICKET_ALREADY_USED", "Ticket has already been used", HttpStatus.BAD_REQUEST),
     TICKET_NOT_TRANSFERABLE("TICKET_NOT_TRANSFERABLE", "Ticket cannot be transferred or listed for resale", HttpStatus.BAD_REQUEST);

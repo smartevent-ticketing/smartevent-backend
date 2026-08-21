@@ -47,6 +47,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/**",
+                                "/api/v1/payments/**/ipn",
+                                "/api/v1/payments/**/return",
+                                "/api/v1/payments/**/callback",
+                                "/api/v1/payments/**/success",
+                                "/api/v1/payments/**/cancel",
                                 "/actuator/health",
                                 "/actuator/info",
                                 "/v3/api-docs/**",
