@@ -65,7 +65,10 @@ public enum ErrorCode {
     // Billing & Invoice (Module 8)
     INVOICE_NOT_FOUND("INVOICE_NOT_FOUND", "Invoice record not found", HttpStatus.NOT_FOUND),
     INVOICE_ALREADY_ISSUED("INVOICE_ALREADY_ISSUED", "Invoice has already been issued for this order", HttpStatus.BAD_REQUEST),
-    INVOICE_INVALID_STATUS("INVOICE_INVALID_STATUS", "Invoice is not in a valid status for this operation", HttpStatus.BAD_REQUEST);
+    INVOICE_INVALID_STATUS("INVOICE_INVALID_STATUS", "Invoice is not in a valid status for this operation", HttpStatus.BAD_REQUEST),
+
+    // Rate Limiting (Infrastructure)
+    TOO_MANY_REQUESTS("TOO_MANY_REQUESTS", "Too many requests. Please slow down and try again later.", HttpStatus.TOO_MANY_REQUESTS);
 
     private final String code;
     private final String defaultMessage;

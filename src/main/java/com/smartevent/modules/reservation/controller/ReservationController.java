@@ -26,7 +26,8 @@ public class ReservationController {
     @PostMapping("/api/v1/reservations")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Tạo phiên đặt giữ chỗ thời gian thực trong 10 phút (Khóa ghế HELD và trừ tồn kho)")
+    @com.smartevent.common.ratelimit.RateLimit(limit = 10, durationInSeconds = 60, keyPrefix = "reservation_hold")
+    @Operation(summary = "Tạo phiên đặt giữ chỗ thời gian thực trong 10 phút (Khóa ghế HELD - Giới hạn 10 lần/phút)")
     public ApiResponse<ReservationResponse> createReservation(
             @Valid @RequestBody CreateReservationRequest request,
             @CurrentUser UserPrincipal currentUser

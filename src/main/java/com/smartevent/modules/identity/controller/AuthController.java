@@ -35,7 +35,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Đăng nhập hệ thống (nhận Access Token và Refresh Token)")
+    @com.smartevent.common.ratelimit.RateLimit(limit = 5, durationInSeconds = 60, keyPrefix = "auth_login")
+    @Operation(summary = "Đăng nhập hệ thống (nhận Access Token và Refresh Token - Giới hạn 5 lần/phút)")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.success(authService.login(request));
     }
