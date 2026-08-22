@@ -1,5 +1,6 @@
 package com.smartevent.modules.payment.service.impl;
 
+import com.smartevent.modules.ticket.service.TicketService;
 import tools.jackson.databind.ObjectMapper;
 import com.smartevent.common.enums.OrderStatus;
 import com.smartevent.common.enums.PaymentMethod;
@@ -46,6 +47,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final VNPayProperties vnPayProperties;
     private final ObjectMapper objectMapper;
     private final Map<PaymentMethod, PaymentGatewayProvider> gatewayProviders;
+    private final TicketService ticketService;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               PaymentWebhookEventRepository webhookEventRepository,
@@ -53,13 +55,15 @@ public class PaymentServiceImpl implements PaymentService {
                               ReservationService reservationService,
                               VNPayProperties vnPayProperties,
                               ObjectMapper objectMapper,
-                              List<PaymentGatewayProvider> providers) {
+                              List<PaymentGatewayProvider> providers,
+                              TicketService ticketService) {
         this.paymentRepository = paymentRepository;
         this.webhookEventRepository = webhookEventRepository;
         this.orderRepository = orderRepository;
         this.reservationService = reservationService;
         this.vnPayProperties = vnPayProperties;
         this.objectMapper = objectMapper;
+        this.ticketService = ticketService;
         // Tự động gom tất cả Provider theo PaymentMethod
         this.gatewayProviders = providers.stream()
                 .collect(Collectors.toMap(PaymentGatewayProvider::getPaymentMethod, Function.identity()));
@@ -170,6 +174,7 @@ public class PaymentServiceImpl implements PaymentService {
             // BƯỚC 7: Kích hoạt chuỗi hậu thanh toán (Chốt vé SOLD trong Reservation)
             if (order.getReservationId() != null) {
                 reservationService.confirmReservation(order.getReservationId());
+                ticketService.issueTicketsForOrder(order.getId());
                 log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
             }
         } else {
