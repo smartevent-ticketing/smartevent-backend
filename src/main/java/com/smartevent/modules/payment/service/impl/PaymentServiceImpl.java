@@ -1,5 +1,6 @@
 package com.smartevent.modules.payment.service.impl;
 
+import com.smartevent.modules.invoice.service.InvoiceService;
 import com.smartevent.modules.ticket.service.TicketService;
 import tools.jackson.databind.ObjectMapper;
 import com.smartevent.common.enums.OrderStatus;
@@ -48,6 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ObjectMapper objectMapper;
     private final Map<PaymentMethod, PaymentGatewayProvider> gatewayProviders;
     private final TicketService ticketService;
+    private final InvoiceService invoiceService;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
                               PaymentWebhookEventRepository webhookEventRepository,
@@ -56,7 +58,8 @@ public class PaymentServiceImpl implements PaymentService {
                               VNPayProperties vnPayProperties,
                               ObjectMapper objectMapper,
                               List<PaymentGatewayProvider> providers,
-                              TicketService ticketService) {
+                              TicketService ticketService,
+                              InvoiceService invoiceService) {
         this.paymentRepository = paymentRepository;
         this.webhookEventRepository = webhookEventRepository;
         this.orderRepository = orderRepository;
@@ -64,6 +67,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.vnPayProperties = vnPayProperties;
         this.objectMapper = objectMapper;
         this.ticketService = ticketService;
+        this.invoiceService = invoiceService;
         // Tự động gom tất cả Provider theo PaymentMethod
         this.gatewayProviders = providers.stream()
                 .collect(Collectors.toMap(PaymentGatewayProvider::getPaymentMethod, Function.identity()));
@@ -175,6 +179,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (order.getReservationId() != null) {
                 reservationService.confirmReservation(order.getReservationId());
                 ticketService.issueTicketsForOrder(order.getId());
+                invoiceService.issueInvoiceForOrder(order.getId());
                 log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
             }
         } else {

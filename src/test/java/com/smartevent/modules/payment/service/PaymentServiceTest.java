@@ -43,6 +43,7 @@ class PaymentServiceTest {
     @Mock private HttpServletRequest servletRequest;
     @Mock private PaymentGatewayProvider vnpayGatewayProvider;
     @Mock private com.smartevent.modules.ticket.service.TicketService ticketService;
+    @Mock private com.smartevent.modules.invoice.service.InvoiceService invoiceService;
 
     private VNPayProperties vnPayProperties;
     private ObjectMapper objectMapper;
@@ -76,7 +77,8 @@ class PaymentServiceTest {
                 vnPayProperties,
                 objectMapper,
                 List.of(vnpayGatewayProvider),
-                ticketService
+                ticketService,
+                invoiceService
         );
 
         pendingOrder = new Order(
