@@ -41,6 +41,10 @@ dependencies {
 	// MinIO Object Storage
 	implementation 'io.minio:minio:8.5.17'
 
+	// Google ZXing QR Code Engine
+	implementation 'com.google.zxing:core:3.5.3'
+	implementation 'com.google.zxing:javase:3.5.3'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'

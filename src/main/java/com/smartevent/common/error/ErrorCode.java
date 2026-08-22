@@ -10,13 +10,15 @@ public enum ErrorCode {
     UNAUTHORIZED("UNAUTHORIZED", "Unauthorized", HttpStatus.UNAUTHORIZED),
     BUSINESS_RULE_VIOLATION("BUSINESS_RULE_VIOLATION", "Business rule violation", HttpStatus.BAD_REQUEST),
 
-    //Identity
+    // Identity
+    USER_NOT_FOUND("USER_NOT_FOUND", "User not found", HttpStatus.NOT_FOUND),
     DUPLICATE_EMAIL("DUPLICATE_EMAIL", "Email already exists", HttpStatus.BAD_REQUEST),
     INVALID_CREDENTIALS("INVALID_CREDENTIALS", "Invalid credentials", HttpStatus.UNAUTHORIZED),
     TOKEN_EXPIRED("TOKEN_EXPIRED", "Token expired", HttpStatus.UNAUTHORIZED),
     ACCOUNT_DISABLED("ACCOUNT_DISABLED", "Account disabled", HttpStatus.UNAUTHORIZED),
 
     // Event
+    EVENT_NOT_FOUND("EVENT_NOT_FOUND", "Event not found", HttpStatus.NOT_FOUND),
     EVENT_NOT_PUBLISHED("EVENT_NOT_PUBLISHED", "Event is not published", HttpStatus.BAD_REQUEST),
     VENUE_TIME_CONFLICT("VENUE_TIME_CONFLICT", "Venue time conflict with another event", HttpStatus.BAD_REQUEST),
 
@@ -51,7 +53,13 @@ public enum ErrorCode {
     PAYMENT_FAILED("PAYMENT_FAILED", "Payment transaction failed", HttpStatus.BAD_REQUEST),
     DUPLICATE_WEBHOOK("DUPLICATE_WEBHOOK", "Webhook event has already been processed", HttpStatus.BAD_REQUEST),
     TICKET_ALREADY_USED("TICKET_ALREADY_USED", "Ticket has already been used", HttpStatus.BAD_REQUEST),
-    TICKET_NOT_TRANSFERABLE("TICKET_NOT_TRANSFERABLE", "Ticket cannot be transferred or listed for resale", HttpStatus.BAD_REQUEST);
+    TICKET_NOT_TRANSFERABLE("TICKET_NOT_TRANSFERABLE", "Ticket cannot be transferred or listed for resale", HttpStatus.BAD_REQUEST),
+
+    // Ticket & Check-in (Module 7)
+    TICKET_NOT_FOUND("TICKET_NOT_FOUND", "Ticket record not found", HttpStatus.NOT_FOUND),
+    TICKET_INVALID_STATUS("TICKET_INVALID_STATUS", "Ticket is not in a valid status for this operation", HttpStatus.BAD_REQUEST),
+    QR_TOKEN_INVALID("QR_TOKEN_INVALID", "Invalid, revoked or expired QR token", HttpStatus.BAD_REQUEST),
+    CHECKIN_EVENT_MISMATCH("CHECKIN_EVENT_MISMATCH", "Ticket does not belong to this event", HttpStatus.BAD_REQUEST);
 
     private final String code;
     private final String defaultMessage;
