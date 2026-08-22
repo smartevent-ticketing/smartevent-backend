@@ -76,6 +76,22 @@ public class InvoiceController {
         return ApiResponse.success(invoiceService.sendInvoiceEmail(id, currentUser.getId(), request));
     }
 
+    @GetMapping("/{id}/pdf")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Tải file PDF hóa đơn điện tử chính thức (Content-Type: application/pdf)")
+    public org.springframework.http.ResponseEntity<byte[]> downloadInvoicePdf(
+            @PathVariable UUID id,
+            @CurrentUser UserPrincipal currentUser
+    ) {
+        boolean isAdmin = checkIsAdmin(currentUser);
+        byte[] pdfBytes = invoiceService.downloadInvoicePdf(id, currentUser.getId(), isAdmin);
+
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invoice-" + id + ".pdf\"")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+    }
+
     private boolean checkIsAdmin(UserPrincipal currentUser) {
         return currentUser != null && currentUser.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));

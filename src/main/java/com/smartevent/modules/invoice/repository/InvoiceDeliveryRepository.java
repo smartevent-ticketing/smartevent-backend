@@ -9,5 +9,8 @@ import java.util.UUID;
 
 @Repository
 public interface InvoiceDeliveryRepository extends JpaRepository<InvoiceDelivery, UUID> {
+
+    List<InvoiceDelivery> findByInvoiceId(UUID invoiceId);
+
     List<InvoiceDelivery> findByInvoiceIdOrderByCreatedAtDesc(UUID invoiceId);
 }

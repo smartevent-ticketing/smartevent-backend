@@ -44,6 +44,10 @@ public class EmailService {
     }
 
     public void sendInvoiceEmail(String recipientEmail, String invoiceCode, BigDecimal totalAmount, String billingDate) {
+        sendInvoiceEmailWithPdf(recipientEmail, invoiceCode, totalAmount, billingDate, null);
+    }
+
+    public void sendInvoiceEmailWithPdf(String recipientEmail, String invoiceCode, BigDecimal totalAmount, String billingDate, byte[] pdfAttachment) {
         String formattedAmount = NumberFormat.getCurrencyInstance(new Locale("vi", "VN")).format(totalAmount);
         String subject = "🧾 Hóa Đơn Điện Tử Đơn Hàng #" + invoiceCode + " - Smart Event";
         String htmlContent = """
@@ -56,14 +60,18 @@ public class EmailService {
                     <p><strong>Thời gian xuất:</strong> %s</p>
                     <p><strong>Tổng tiền thanh toán:</strong> <span style="font-size: 18px; font-weight: bold; color: #dc2626;">%s</span></p>
                 </div>
-                <p>Quý khách có thể tra cứu chi tiết hoặc tải file chứng từ trên tài khoản cá nhân Smart Event.</p>
+                <p>Hóa đơn điện tử PDF chính thức đã được đính kèm trực tiếp trong email này.</p>
             </div>
             """.formatted(invoiceCode, billingDate, formattedAmount);
 
-        sendHtmlEmail(recipientEmail, subject, htmlContent);
+        sendHtmlEmailWithAttachment(recipientEmail, subject, htmlContent, "HoaDon_" + invoiceCode + ".pdf", pdfAttachment);
     }
 
     private void sendHtmlEmail(String toEmail, String subject, String htmlBody) {
+        sendHtmlEmailWithAttachment(toEmail, subject, htmlBody, null, null);
+    }
+
+    private void sendHtmlEmailWithAttachment(String toEmail, String subject, String htmlBody, String attachmentFilename, byte[] attachmentBytes) {
         if (mailSender == null) {
             log.info("[MOCK MAIL SENDER] Sẽ gửi email tới: {} | Tiêu đề: {}", toEmail, subject);
             return;
@@ -77,10 +85,15 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
 
+            if (attachmentBytes != null && attachmentFilename != null) {
+                helper.addAttachment(attachmentFilename, new org.springframework.core.io.ByteArrayResource(attachmentBytes));
+            }
+
             mailSender.send(message);
             log.info("Đã gửi email thành công tới: {}", toEmail);
         } catch (Exception ex) {
             log.error("Không thể gửi email tới {}: {}", toEmail, ex.getMessage());
+            throw new RuntimeException("Lỗi gửi email: " + ex.getMessage(), ex);
         }
     }
 }

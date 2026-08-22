@@ -35,6 +35,14 @@ spring:
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        retry:
+          enabled: true
+          initial-interval: 2000ms
+          max-attempts: 3
+          multiplier: 2
+        default-requeue-rejected: false
 
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}

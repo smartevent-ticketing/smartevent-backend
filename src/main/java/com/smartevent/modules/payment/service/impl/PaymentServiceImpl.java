@@ -170,17 +170,35 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setTransactionId(transactionNo);
 
         if ("00".equals(responseCode)) {
-            // Thanh toán thành công
-            payment.setStatus(PaymentStatus.SUCCESS);
+            // Thanh toán thành công từ cổng VNPay
             payment.setPaidAt(Instant.now());
-            order.setStatus(OrderStatus.PAID);
 
-            // BƯỚC 7: Kích hoạt chuỗi hậu thanh toán (Chốt vé SOLD trong Reservation)
+            boolean confirmed = false;
             if (order.getReservationId() != null) {
-                reservationService.confirmReservation(order.getReservationId());
-                ticketService.issueTicketsForOrder(order.getId());
-                invoiceService.issueInvoiceForOrder(order.getId());
-                log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
+                try {
+                    reservationService.confirmReservation(order.getReservationId());
+                    ticketService.issueTicketsForOrder(order.getId());
+                    invoiceService.issueInvoiceForOrder(order.getId());
+                    confirmed = true;
+                    log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
+                } catch (Exception ex) {
+                    log.error("CẢNH BÁO LATE-PAYMENT: VNPay đã thu tiền (TxnNo: {}) nhưng phiên giữ chỗ {} đã hết hạn/bị giải phóng: {}", 
+                            transactionNo, order.getReservationId(), ex.getMessage());
+                    confirmed = false;
+                }
+            } else {
+                confirmed = true;
+            }
+
+            if (confirmed) {
+                payment.setStatus(PaymentStatus.SUCCESS);
+                order.setStatus(OrderStatus.PAID);
+            } else {
+                // Đánh dấu giao dịch LATE PAYMENT để đối soát hoàn tiền, KHÔNG rollback database
+                payment.setStatus(PaymentStatus.SUCCESS);
+                order.setStatus(OrderStatus.CANCELLED);
+                order.setCustomerNote("LATE_PAYMENT_EXPIRED: VNPay đã trừ tiền thành công (Mã GD: " + transactionNo + ") nhưng phiên giữ chỗ đã hết hạn 10 phút. Hệ thống tự động chuyển đối soát hoàn tiền.");
+                log.warn("Đơn hàng {} chuyển sang CANCELLED (Cần hoàn tiền) do thanh toán muộn sau khi hết hạn", orderCode);
             }
         } else {
             // Thanh toán thất bại hoặc khách bấm hủy

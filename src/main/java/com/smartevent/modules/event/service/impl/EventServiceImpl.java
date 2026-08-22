@@ -220,6 +220,9 @@ public class EventServiceImpl implements EventService {
     public EventResponse getEventBySlug(String slug) {
         Event event = eventRepository.findBySlug(slug)
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new EventException(ErrorCode.EVENT_NOT_PUBLISHED, "Sự kiện chưa được công bố công khai");
+        }
         return toEventResponse(event);
     }
 
@@ -228,6 +231,9 @@ public class EventServiceImpl implements EventService {
     public EventResponse getEventById(UUID id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new EventException(ErrorCode.EVENT_NOT_PUBLISHED, "Sự kiện chưa được công bố công khai");
+        }
         return toEventResponse(event);
     }
 

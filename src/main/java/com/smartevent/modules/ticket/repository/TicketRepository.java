@@ -29,4 +29,12 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     // 6. Đếm số lượng vé theo trạng thái trong sự kiện (VD: bao nhiêu vé ISSUED, bao nhiêu vé USED)
     long countByEventIdAndStatus(UUID eventId, TicketStatus status);
+
+    // 🔥 ATOMIC CONDITIONAL UPDATE: Chỉ chuyển vé ISSUED -> USED nếu chưa từng bị quét
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE Ticket t SET t.status = com.smartevent.common.enums.TicketStatus.USED, t.usedAt = :usedAt WHERE t.id = :ticketId AND t.status = com.smartevent.common.enums.TicketStatus.ISSUED")
+    int markTicketAsUsedAtomic(
+            @org.springframework.data.repository.query.Param("ticketId") UUID ticketId,
+            @org.springframework.data.repository.query.Param("usedAt") java.time.Instant usedAt
+    );
 }

@@ -26,4 +26,7 @@ public interface InvoiceService {
 
     // 6. Gửi / Gửi lại hóa đơn qua email của khách hàng
     InvoiceDeliveryResponse sendInvoiceEmail(UUID invoiceId, UUID currentUserId, SendInvoiceEmailRequest request);
+
+    // 7. Xuất file PDF hóa đơn điện tử thật (OpenPDF)
+    byte[] downloadInvoicePdf(UUID invoiceId, UUID currentUserId, boolean isAdmin);
 }

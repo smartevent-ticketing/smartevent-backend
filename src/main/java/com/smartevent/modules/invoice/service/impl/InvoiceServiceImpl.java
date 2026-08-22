@@ -50,6 +50,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
     private final EventSeatRepository eventSeatRepository;
+    private final com.smartevent.modules.invoice.support.PdfInvoiceGenerator pdfInvoiceGenerator;
+    private final com.smartevent.modules.outbox.service.OutboxService outboxService;
 
     @Override
     @Transactional
@@ -110,10 +112,19 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         // 6. Khởi tạo bản ghi gửi email tự động (InvoiceDelivery)
         InvoiceDelivery delivery = new InvoiceDelivery(savedInvoice.getId(), billingEmail);
-        delivery.setStatus(DeliveryStatus.SENT); // Giả lập đánh dấu đã gửi email
-        delivery.setSentAt(Instant.now());
-        delivery.setProviderMessageId("MSG-" + UUID.randomUUID().toString().substring(0, 8));
-        invoiceDeliveryRepository.save(delivery);
+        delivery.setStatus(DeliveryStatus.PENDING);
+        InvoiceDelivery savedDelivery = invoiceDeliveryRepository.save(delivery);
+
+        // Ghi Outbox Event gửi Email hóa đơn bất đồng bộ qua RabbitMQ kèm deliveryId
+        outboxService.publishEvent("INVOICE", savedInvoice.getId(), new com.smartevent.modules.invoice.dto.event.InvoiceCreatedEvent(
+                savedInvoice.getId(),
+                savedDelivery.getId(),
+                savedInvoice.getInvoiceCode(),
+                savedInvoice.getOrderId(),
+                savedInvoice.getUserId(),
+                billingEmail,
+                savedInvoice.getTotalAmount()
+        ));
 
         log.info("Xuất hóa đơn thành công! Mã: {} cho Order ID: {}", invoiceCode, orderId);
         return buildInvoiceResponse(savedInvoice);
@@ -169,13 +180,37 @@ public class InvoiceServiceImpl implements InvoiceService {
                 : invoice.getBillingEmail();
 
         InvoiceDelivery delivery = new InvoiceDelivery(invoice.getId(), targetEmail);
-        delivery.setStatus(DeliveryStatus.SENT);
-        delivery.setSentAt(Instant.now());
-        delivery.setProviderMessageId("RESEND-" + UUID.randomUUID().toString().substring(0, 8));
+        delivery.setStatus(DeliveryStatus.PENDING);
         InvoiceDelivery savedDelivery = invoiceDeliveryRepository.save(delivery);
 
-        log.info("Đã gửi lại hóa đơn {} sang email {}", invoice.getInvoiceCode(), targetEmail);
+        // Ghi Outbox Event gửi lại hóa đơn bất đồng bộ
+        outboxService.publishEvent("INVOICE", invoice.getId(), new com.smartevent.modules.invoice.dto.event.InvoiceCreatedEvent(
+                invoice.getId(),
+                invoice.getInvoiceCode(),
+                invoice.getOrderId(),
+                invoice.getUserId(),
+                targetEmail,
+                invoice.getTotalAmount()
+        ));
+
+        log.info("Đã kích hoạt gửi lại hóa đơn {} sang email {}", invoice.getInvoiceCode(), targetEmail);
         return InvoiceDeliveryResponse.fromEntity(savedDelivery);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] downloadInvoicePdf(UUID invoiceId, UUID currentUserId, boolean isAdmin) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new InvoiceException(ErrorCode.INVOICE_NOT_FOUND, "Không tìm thấy hóa đơn"));
+
+        verifyOwnership(invoice, currentUserId, isAdmin);
+
+        List<InvoiceItem> items = invoiceItemRepository.findByInvoiceId(invoiceId);
+        User buyer = userRepository.findById(invoice.getUserId()).orElse(null);
+        String buyerName = buyer != null ? buyer.getFullName() : "Khách hàng";
+        String buyerEmail = buyer != null ? buyer.getEmail() : invoice.getBillingEmail();
+
+        return pdfInvoiceGenerator.generateInvoicePdf(invoice, items, buyerName, buyerEmail);
     }
 
     // Helper: Kiểm tra quyền xem hóa đơn

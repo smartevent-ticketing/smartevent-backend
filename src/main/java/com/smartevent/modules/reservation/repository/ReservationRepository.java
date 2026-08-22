@@ -23,4 +23,13 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     // Tìm các phiên PENDING đã quá hạn để tự động quét nhả vé
     List<Reservation> findByStatusAndExpiresAtBefore(ReservationStatus status, Instant now);
+
+    // 🔥 ATOMIC CAS: Chỉ chuyển trạng thái nếu trạng thái hiện tại đúng là fromStatus
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE Reservation r SET r.status = :toStatus WHERE r.id = :id AND r.status = :fromStatus")
+    int updateStatusAtomic(
+            @org.springframework.data.repository.query.Param("id") UUID id,
+            @org.springframework.data.repository.query.Param("fromStatus") ReservationStatus fromStatus,
+            @org.springframework.data.repository.query.Param("toStatus") ReservationStatus toStatus
+    );
 }

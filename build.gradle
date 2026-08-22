@@ -48,6 +48,9 @@ dependencies {
 	// Java Mail Sender (Gửi email hóa đơn & mã vé)
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+	// PDF Generation (OpenPDF xuất hóa đơn điện tử)
+	implementation 'com.github.librepdf:openpdf:2.0.3'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'

@@ -257,5 +257,39 @@ class EventServiceTest {
         assertNotNull(response);
         assertEquals(EventStatus.CANCELLED, response.status());
     }
+
+    @Test
+    @DisplayName("Xem sự kiện theo ID khi còn DRAFT -> Ném EVENT_NOT_PUBLISHED")
+    void getEventById_Draft_ThrowsEventNotPublished() {
+        UUID eventId = UUID.randomUUID();
+        Event event = new Event();
+        event.setId(eventId);
+        event.setStatus(EventStatus.DRAFT);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        EventException exception = assertThrows(EventException.class, () ->
+                eventService.getEventById(eventId)
+        );
+
+        assertEquals(ErrorCode.EVENT_NOT_PUBLISHED, exception.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Xem sự kiện theo Slug khi còn DRAFT -> Ném EVENT_NOT_PUBLISHED")
+    void getEventBySlug_Draft_ThrowsEventNotPublished() {
+        String slug = "concert-draft-slug";
+        Event event = new Event();
+        event.setSlug(slug);
+        event.setStatus(EventStatus.DRAFT);
+
+        when(eventRepository.findBySlug(slug)).thenReturn(Optional.of(event));
+
+        EventException exception = assertThrows(EventException.class, () ->
+                eventService.getEventBySlug(slug)
+        );
+
+        assertEquals(ErrorCode.EVENT_NOT_PUBLISHED, exception.getErrorCode());
+    }
 }
 

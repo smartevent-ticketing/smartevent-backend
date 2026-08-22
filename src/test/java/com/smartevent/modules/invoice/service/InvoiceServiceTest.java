@@ -54,6 +54,8 @@ class InvoiceServiceTest {
     @Mock private TicketTypeRepository ticketTypeRepository;
     @Mock private EventRepository eventRepository;
     @Mock private EventSeatRepository eventSeatRepository;
+    @Mock private com.smartevent.modules.invoice.support.PdfInvoiceGenerator pdfInvoiceGenerator;
+    @Mock private com.smartevent.modules.outbox.service.OutboxService outboxService;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
@@ -102,6 +104,11 @@ class InvoiceServiceTest {
             Invoice inv = i.getArgument(0);
             inv.setId(UUID.randomUUID());
             return inv;
+        });
+        when(invoiceDeliveryRepository.save(any(InvoiceDelivery.class))).thenAnswer(i -> {
+            InvoiceDelivery d = i.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
         });
         when(orderItemRepository.findByOrderId(orderId)).thenReturn(List.of(item1));
 
@@ -205,7 +212,8 @@ class InvoiceServiceTest {
 
         assertNotNull(response);
         assertEquals("custom_email@gmail.com", response.recipientEmail());
-        assertEquals(DeliveryStatus.SENT, response.status());
+        assertEquals(DeliveryStatus.PENDING, response.status());
         verify(invoiceDeliveryRepository, times(1)).save(any(InvoiceDelivery.class));
+        verify(outboxService, times(1)).publishEvent(eq("INVOICE"), eq(invoiceId), any());
     }
 }

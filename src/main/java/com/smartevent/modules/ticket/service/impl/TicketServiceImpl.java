@@ -48,6 +48,8 @@ public class TicketServiceImpl implements TicketService {
     private final EventSeatRepository eventSeatRepository;
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketSalePhaseRepository salePhaseRepository;
+    private final com.smartevent.modules.identity.repository.UserRepository userRepository;
+    private final com.smartevent.modules.outbox.service.OutboxService outboxService;
 
     @Override
     @Transactional
@@ -89,6 +91,26 @@ public class TicketServiceImpl implements TicketService {
                 String qrTokenHash = TicketSecurityUtils.generateSecureQrToken(savedTicket.getId(), order.getUserId());
                 TicketQrToken qrToken = new TicketQrToken(savedTicket.getId(), qrTokenHash);
                 qrTokenRepository.save(qrToken);
+
+                // Ghi Outbox Event gửi Email vé điện tử kèm ảnh QR Base64 bất đồng bộ qua RabbitMQ
+                String qrBase64 = com.smartevent.common.util.QrCodeUtils.generateQrCodeBase64(qrTokenHash);
+                String eventName = eventRepository.findById(savedTicket.getEventId()).map(Event::getName).orElse("Sự kiện");
+                String ownerEmail = userRepository.findById(order.getUserId()).map(com.smartevent.modules.identity.entity.User::getEmail).orElse("user@gmail.com");
+                String seatCode = savedTicket.getEventSeatId() != null
+                        ? eventSeatRepository.findById(savedTicket.getEventSeatId()).map(EventSeat::getSeatNumber).orElse("Ghế tự do") : "Vé đứng";
+                String typeName = ticketTypeRepository.findById(savedTicket.getTicketTypeId()).map(TicketType::getName).orElse("Standard");
+
+                outboxService.publishEvent("TICKET", savedTicket.getId(), new com.smartevent.modules.ticket.dto.event.TicketIssuedEvent(
+                        savedTicket.getId(),
+                        savedTicket.getTicketCode(),
+                        savedTicket.getEventId(),
+                        eventName,
+                        savedTicket.getCurrentOwnerUserId(),
+                        ownerEmail,
+                        seatCode,
+                        typeName,
+                        qrBase64
+                ));
 
                 savedTickets.add(savedTicket);
             }

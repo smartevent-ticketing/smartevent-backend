@@ -46,7 +46,10 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/v1/auth/**",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/refresh-token",
+                                "/api/v1/auth/logout",
                                 "/api/v1/payments/*/ipn",
                                 "/api/v1/payments/*/return",
                                 "/api/v1/payments/*/callback",

@@ -40,6 +40,7 @@ class CheckinServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private EventSeatRepository eventSeatRepository;
     @Mock private TicketTypeRepository ticketTypeRepository;
+    @Mock private com.smartevent.modules.event.repository.EventRepository eventRepository;
 
     @InjectMocks
     private CheckinServiceImpl checkinService;
@@ -60,15 +61,16 @@ class CheckinServiceTest {
                 eventId, null, null, UUID.randomUUID(), null, "TCK-20260822-ABC12345"
         );
         validTicket.setId(ticketId);
-        validTicket.setStatus(TicketStatus.ISSUED);
     }
 
     @Test
-    @DisplayName("Quét vé lần đầu thành công -> Kết quả SUCCESS và đổi trạng thái vé sang USED")
+    @DisplayName("Quét vé lần đầu thành công -> Kết quả SUCCESS và đổi trạng thái vé sang USED bằng Atomic Update")
     void checkin_Success() {
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", eventId, "Cổng VIP 1");
 
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
         when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
+        when(ticketRepository.markTicketAsUsedAtomic(eq(ticketId), any())).thenReturn(1);
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> {
             TicketCheckin tc = i.getArgument(0);
             tc.setId(UUID.randomUUID());
@@ -79,9 +81,7 @@ class CheckinServiceTest {
 
         assertNotNull(response);
         assertEquals(CheckinResult.SUCCESS, response.result());
-        assertEquals(TicketStatus.USED, validTicket.getStatus());
-        assertNotNull(validTicket.getUsedAt());
-        verify(ticketRepository, times(1)).save(validTicket);
+        verify(ticketRepository, times(1)).markTicketAsUsedAtomic(eq(ticketId), any());
         verify(checkinRepository, times(1)).save(any(TicketCheckin.class));
     }
 
@@ -93,6 +93,7 @@ class CheckinServiceTest {
 
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", eventId, "Cổng A2");
 
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
         when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -101,7 +102,7 @@ class CheckinServiceTest {
         assertNotNull(response);
         assertEquals(CheckinResult.DUPLICATE, response.result());
         assertTrue(response.message().contains("CẢNH BÁO: Vé này đã được quét sử dụng trước đó"));
-        verify(ticketRepository, never()).save(validTicket);
+        verify(ticketRepository, never()).markTicketAsUsedAtomic(any(), any());
     }
 
     @Test
@@ -110,6 +111,7 @@ class CheckinServiceTest {
         UUID otherEventId = UUID.randomUUID();
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", otherEventId, "Cổng A1");
 
+        when(eventRepository.findById(otherEventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
         when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -129,6 +131,7 @@ class CheckinServiceTest {
 
         CheckinRequest request = new CheckinRequest(tokenHash, eventId, "Cổng A1");
 
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
         when(qrTokenRepository.findByTokenHash(tokenHash)).thenReturn(Optional.of(revokedToken));
 
         CheckinResponse response = checkinService.processCheckin(request, staffId);

@@ -9,6 +9,7 @@ import java.util.UUID;
 public record InvoiceCreatedEvent(
         UUID eventId,
         UUID invoiceId,
+        UUID deliveryId,
         String invoiceCode,
         UUID orderId,
         UUID userId,
@@ -20,10 +21,18 @@ public record InvoiceCreatedEvent(
         Instant occurredAt
 ) implements DomainEvent {
 
-    public InvoiceCreatedEvent(UUID invoiceId, String invoiceCode, UUID orderId, UUID userId,
+    public InvoiceCreatedEvent(UUID invoiceId, UUID deliveryId, String invoiceCode, UUID orderId, UUID userId,
                                String billingEmail, BigDecimal subtotal, BigDecimal discountAmount,
                                BigDecimal feeAmount, BigDecimal totalAmount) {
-        this(UUID.randomUUID(), invoiceId, invoiceCode, orderId, userId, billingEmail, subtotal, discountAmount, feeAmount, totalAmount, Instant.now());
+        this(UUID.randomUUID(), invoiceId, deliveryId, invoiceCode, orderId, userId, billingEmail, subtotal, discountAmount, feeAmount, totalAmount, Instant.now());
+    }
+
+    public InvoiceCreatedEvent(UUID invoiceId, UUID deliveryId, String invoiceCode, UUID orderId, UUID userId, String billingEmail, BigDecimal totalAmount) {
+        this(invoiceId, deliveryId, invoiceCode, orderId, userId, billingEmail, totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount);
+    }
+
+    public InvoiceCreatedEvent(UUID invoiceId, String invoiceCode, UUID orderId, UUID userId, String billingEmail, BigDecimal totalAmount) {
+        this(invoiceId, null, invoiceCode, orderId, userId, billingEmail, totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount);
     }
 
     @Override

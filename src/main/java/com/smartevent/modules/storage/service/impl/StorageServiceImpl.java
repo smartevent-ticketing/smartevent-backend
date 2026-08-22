@@ -44,16 +44,37 @@ public class StorageServiceImpl implements StorageService {
     @Transactional
     public FileUploadResponse uploadFile(MultipartFile file, UUID ownerId, String folder, FileVisibility visibility) {
 
-        if(file == null || file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             throw new FileException(
                     ErrorCode.VALIDATION_ERROR,
                     "File rỗng không được để trống"
             );
         }
 
-        // 2. Sinh đường dẫn độc nhất trên MinIO (objectName)
+        // Kiểm tra dung lượng tối đa 10MB
+        if (file.getSize() > 10 * 1024 * 1024) {
+            throw new FileException(ErrorCode.VALIDATION_ERROR, "Kích thước tệp vượt quá giới hạn cho phép (Tối đa 10MB)");
+        }
+
+        // Kiểm tra MIME-Type thực tế
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.startsWith("image/") && !contentType.equals("application/pdf"))) {
+            throw new FileException(ErrorCode.VALIDATION_ERROR, "Loại nội dung (MIME-Type) không được phép. Chỉ chấp nhận ảnh hoặc PDF");
+        }
+        if ("image/svg+xml".equalsIgnoreCase(contentType)) {
+            throw new FileException(ErrorCode.VALIDATION_ERROR, "Định dạng SVG không được hỗ trợ vì lý do an ninh");
+        }
+
+        // 2. Sinh đường dẫn độc nhất trên MinIO (objectName) sau khi sanitize folder
+        String sanitized = (folder != null) ? folder.replaceAll("[^a-zA-Z0-9_-]", "") : "";
+        String sanitizedFolder = sanitized.isBlank() ? "general" : sanitized;
         String extension = extractExtension(file.getOriginalFilename());
-        String objectName = folder + "/" + UUID.randomUUID() + extension;
+        java.util.List<String> allowedExtensions = java.util.List.of(".jpg", ".jpeg", ".png", ".webp", ".pdf");
+        if (!allowedExtensions.contains(extension.toLowerCase())) {
+            throw new FileException(ErrorCode.VALIDATION_ERROR, "Định dạng tệp không hợp lệ. Chỉ chấp nhận JPG, PNG, WEBP, PDF");
+        }
+
+        String objectName = sanitizedFolder + "/" + UUID.randomUUID() + extension;
 
         // 3. Đẩy file lên MinIO
         try {

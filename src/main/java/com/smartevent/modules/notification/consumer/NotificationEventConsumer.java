@@ -18,6 +18,11 @@ public class NotificationEventConsumer {
 
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
+    private final com.smartevent.modules.invoice.repository.InvoiceRepository invoiceRepository;
+    private final com.smartevent.modules.invoice.repository.InvoiceItemRepository invoiceItemRepository;
+    private final com.smartevent.modules.invoice.repository.InvoiceDeliveryRepository invoiceDeliveryRepository;
+    private final com.smartevent.modules.identity.repository.UserRepository userRepository;
+    private final com.smartevent.modules.invoice.support.PdfInvoiceGenerator pdfInvoiceGenerator;
 
     @RabbitListener(queues = RabbitMQConfig.TICKET_ISSUED_QUEUE)
     public void handleTicketIssuedEvent(String messagePayload) {
@@ -40,18 +45,71 @@ public class NotificationEventConsumer {
 
     @RabbitListener(queues = RabbitMQConfig.INVOICE_CREATED_QUEUE)
     public void handleInvoiceCreatedEvent(String messagePayload) {
+        InvoiceCreatedEvent event = null;
         try {
-            InvoiceCreatedEvent event = objectMapper.readValue(messagePayload, InvoiceCreatedEvent.class);
+            event = objectMapper.readValue(messagePayload, InvoiceCreatedEvent.class);
             log.info("Notification Consumer: Nhận sự kiện hóa đơn xuất: {}", event.invoiceCode());
 
-            emailService.sendInvoiceEmail(
+            // 1. Sinh file PDF hóa đơn thực tế
+            var invoice = invoiceRepository.findById(event.invoiceId()).orElse(null);
+            byte[] pdfBytes = null;
+            if (invoice != null) {
+                var items = invoiceItemRepository.findByInvoiceId(invoice.getId());
+                var buyer = userRepository.findById(invoice.getUserId()).orElse(null);
+                String buyerName = buyer != null ? buyer.getFullName() : "Khách hàng";
+                pdfBytes = pdfInvoiceGenerator.generateInvoicePdf(invoice, items, buyerName, event.billingEmail());
+            }
+
+            // 2. Gửi email đính kèm file PDF hóa đơn
+            emailService.sendInvoiceEmailWithPdf(
                     event.billingEmail(),
                     event.invoiceCode(),
                     event.totalAmount(),
-                    event.occurredAt().toString()
+                    event.occurredAt().toString(),
+                    pdfBytes
             );
+
+            // 3. Cập nhật chính xác bản ghi InvoiceDelivery tương ứng -> SENT
+            if (event.deliveryId() != null) {
+                invoiceDeliveryRepository.findById(event.deliveryId()).ifPresent(d -> {
+                    d.setStatus(com.smartevent.common.enums.DeliveryStatus.SENT);
+                    d.setSentAt(java.time.Instant.now());
+                    d.setProviderMessageId("SENT-" + java.util.UUID.randomUUID().toString().substring(0, 8));
+                    invoiceDeliveryRepository.save(d);
+                });
+            } else {
+                var deliveries = invoiceDeliveryRepository.findByInvoiceId(event.invoiceId());
+                for (var d : deliveries) {
+                    if (d.getStatus() == com.smartevent.common.enums.DeliveryStatus.PENDING) {
+                        d.setStatus(com.smartevent.common.enums.DeliveryStatus.SENT);
+                        d.setSentAt(java.time.Instant.now());
+                        d.setProviderMessageId("SENT-" + java.util.UUID.randomUUID().toString().substring(0, 8));
+                        invoiceDeliveryRepository.save(d);
+                    }
+                }
+            }
         } catch (Exception ex) {
-            log.error("Lỗi khi xử lý sự kiện InvoiceCreatedEvent: {}", ex.getMessage(), ex);
+            log.error("Lỗi khi xử lý gửi email InvoiceCreatedEvent: {}", ex.getMessage(), ex);
+            if (event != null) {
+                if (event.deliveryId() != null) {
+                    invoiceDeliveryRepository.findById(event.deliveryId()).ifPresent(d -> {
+                        d.setStatus(com.smartevent.common.enums.DeliveryStatus.FAILED);
+                        String errMsg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                        d.setProviderMessageId("ERR: " + errMsg.substring(0, Math.min(errMsg.length(), 200)));
+                        invoiceDeliveryRepository.save(d);
+                    });
+                } else {
+                    var deliveries = invoiceDeliveryRepository.findByInvoiceId(event.invoiceId());
+                    for (var d : deliveries) {
+                        if (d.getStatus() == com.smartevent.common.enums.DeliveryStatus.PENDING) {
+                            d.setStatus(com.smartevent.common.enums.DeliveryStatus.FAILED);
+                            String errMsg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                            d.setProviderMessageId("ERR: " + errMsg.substring(0, Math.min(errMsg.length(), 200)));
+                            invoiceDeliveryRepository.save(d);
+                        }
+                    }
+                }
+            }
             throw new RuntimeException(ex);
         }
     }

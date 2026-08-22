@@ -48,6 +48,8 @@ class TicketServiceTest {
     @Mock private EventSeatRepository eventSeatRepository;
     @Mock private TicketTypeRepository ticketTypeRepository;
     @Mock private TicketSalePhaseRepository salePhaseRepository;
+    @Mock private com.smartevent.modules.identity.repository.UserRepository userRepository;
+    @Mock private com.smartevent.modules.outbox.service.OutboxService outboxService;
 
     @InjectMocks
     private TicketServiceImpl ticketService;

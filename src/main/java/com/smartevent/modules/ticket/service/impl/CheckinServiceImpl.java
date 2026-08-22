@@ -39,6 +39,7 @@ public class CheckinServiceImpl implements CheckinService {
     private final UserRepository userRepository;
     private final EventSeatRepository eventSeatRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    private final com.smartevent.modules.event.repository.EventRepository eventRepository;
 
     @Override
     @Transactional
@@ -46,6 +47,11 @@ public class CheckinServiceImpl implements CheckinService {
         String input = request.ticketCodeOrToken().trim();
         String gate = request.gateName() != null ? request.gateName() : "Cổng chính";
         log.info("Nhân viên ID {} đang quét mã vé: [{}] tại cổng [{}]", staffUserId, input, gate);
+
+        // 0. Kiểm tra sự tồn tại của Event
+        var event = eventRepository.findById(request.eventId())
+                .orElseThrow(() -> new com.smartevent.modules.ticket.exception.TicketException(
+                        com.smartevent.common.error.ErrorCode.EVENT_NOT_FOUND, "Không tìm thấy sự kiện"));
 
         // 1. Phân giải: Input có thể là mã vé cố định (TCK-...) hoặc chuỗi QR Token Hash
         Optional<Ticket> ticketOpt = Optional.empty();
@@ -96,10 +102,15 @@ public class CheckinServiceImpl implements CheckinService {
             return CheckinResponse.invalid("VÉ ĐÃ BỊ HỦY HOẶC ĐÃ HOÀN TIỀN!", gate);
         }
 
-        // 5. CHECK-IN THÀNH CÔNG (CẬP NHẬT TRẠNG THÁI VÉ -> USED)
-        ticket.setStatus(TicketStatus.USED);
-        ticket.setUsedAt(Instant.now());
-        ticketRepository.save(ticket);
+        // 5. 🔥 ATOMIC CONDITIONAL UPDATE: Chỉ chuyển ISSUED -> USED nếu chưa từng bị quét
+        Instant scanTime = Instant.now();
+        int affectedRows = ticketRepository.markTicketAsUsedAtomic(ticket.getId(), scanTime);
+        if (affectedRows == 0) {
+            // Có máy quét khác vừa nhanh tay quét trước đúng mili-giây này!
+            recordCheckinLog(ticket.getId(), request.eventId(), staffUserId, gate, CheckinResult.DUPLICATE);
+            String ownerName = getAttendeeName(ticket.getCurrentOwnerUserId());
+            return CheckinResponse.duplicate(UUID.randomUUID(), ticket.getId(), ticket.getTicketCode(), gate, ownerName, "Vừa quét lúc " + scanTime);
+        }
 
         TicketCheckin checkinLog = recordCheckinLog(ticket.getId(), request.eventId(), staffUserId, gate, CheckinResult.SUCCESS);
 

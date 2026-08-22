@@ -138,14 +138,12 @@ public class ReservationServiceImpl implements ReservationService {
                     throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Ghế không thuộc khán đài của loại vé này");
                 }
 
-                if (seat.getStatus() != SeatStatus.AVAILABLE) {
+                // 🔥 ATOMIC CONDITIONAL UPDATE: Chỉ chuyển AVAILABLE -> HELD nếu chưa ai chạm vào ghế này
+                int updatedRows = eventSeatRepository.updateSeatStatusAtomic(seat.getId(), SeatStatus.AVAILABLE, SeatStatus.HELD);
+                if (updatedRows == 0) {
                     throw new ReservationException(ErrorCode.SEAT_ALREADY_HELD,
-                            String.format("Ghế %s đã có người chọn hoặc đã bán", seat.getSeatNumber()));
+                            String.format("Ghế %s đã có người khác nhanh tay chọn hoặc đã bán", seat.getSeatNumber()));
                 }
-
-                // Khóa ghế chuyển từ AVAILABLE -> HELD
-                seat.setStatus(SeatStatus.HELD);
-                eventSeatRepository.save(seat);
                 seatCode = seat.getSeatNumber();
             } else {
                 // AreaType.STANDING
@@ -219,12 +217,14 @@ public class ReservationServiceImpl implements ReservationService {
             throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Chỉ có thể hủy phiên giữ chỗ đang ở trạng thái Chờ thanh toán");
         }
 
-        reservation.setStatus(ReservationStatus.CANCELLED);
-        reservationRepository.save(reservation);
-
-        // Nhả tồn kho vé và mở khóa ghế
-        releaseReservationResources(reservation);
-        log.info("Người dùng {} đã chủ động hủy phiên giữ chỗ {}", currentUserId, reservationId);
+        // 🔥 ATOMIC CAS: Chỉ chuyển PENDING -> CANCELLED nếu chưa bị hết hạn hay thanh toán
+        int affected = reservationRepository.updateStatusAtomic(reservationId, ReservationStatus.PENDING, ReservationStatus.CANCELLED);
+        if (affected == 1) {
+            releaseReservationResources(reservation);
+            log.info("Người dùng {} đã chủ động hủy phiên giữ chỗ {}", currentUserId, reservationId);
+        } else {
+            throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Không thể hủy phiên giữ chỗ đã hết hạn hoặc đã xác nhận");
+        }
     }
 
     @Override
@@ -233,24 +233,24 @@ public class ReservationServiceImpl implements ReservationService {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy phiên giữ chỗ"));
 
-        if (reservation.getStatus() != ReservationStatus.PENDING || reservation.isExpired()) {
-            throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Phiên giữ chỗ không hợp lệ hoặc đã hết hạn");
+        if (reservation.isExpired()) {
+            throw new ReservationException(ErrorCode.RESERVATION_EXPIRED, "Phiên giữ chỗ đã quá hạn 10 phút");
         }
 
-        reservation.setStatus(ReservationStatus.CONFIRMED);
-        reservationRepository.save(reservation);
+        // 🔥 ATOMIC CAS: Chỉ chuyển PENDING -> CONFIRMED nếu chưa bị Expiry Worker chuyển thành EXPIRED
+        int affected = reservationRepository.updateStatusAtomic(reservationId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
+        if (affected == 0) {
+            throw new ReservationException(ErrorCode.RESERVATION_EXPIRED, "Phiên giữ chỗ đã hết hạn hoặc đã bị hủy trước đó");
+        }
 
-        // Chuyển vé sang Đã bán (SOLD)
+        // Chỉ duy nhất luồng thắng cuộc mới được chốt chuyển ghế HELD -> SOLD và trừ kho chính thức
         List<ReservationItem> items = reservationItemRepository.findByReservationId(reservationId);
         for (ReservationItem item : items) {
             inventoryService.confirmPurchase(item.getSalePhaseId(), item.getQuantity());
             userSalePhaseCounterService.confirmUserPurchase(reservation.getUserId(), item.getSalePhaseId(), item.getQuantity());
 
             if (item.getEventSeatId() != null) {
-                eventSeatRepository.findById(item.getEventSeatId()).ifPresent(seat -> {
-                    seat.setStatus(SeatStatus.SOLD);
-                    eventSeatRepository.save(seat);
-                });
+                eventSeatRepository.updateSeatStatusAtomic(item.getEventSeatId(), SeatStatus.HELD, SeatStatus.SOLD);
             }
         }
         log.info("Xác nhận thành công phiên giữ chỗ {}", reservationId);
@@ -262,12 +262,14 @@ public class ReservationServiceImpl implements ReservationService {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy phiên giữ chỗ"));
 
-        if (reservation.getStatus() == ReservationStatus.PENDING) {
-            reservation.setStatus(ReservationStatus.EXPIRED);
-            reservationRepository.save(reservation);
-
+        // 🔥 ATOMIC CAS: Chỉ chuyển PENDING -> EXPIRED nếu Payment Callback chưa kịp chuyển thành CONFIRMED
+        int affected = reservationRepository.updateStatusAtomic(reservationId, ReservationStatus.PENDING, ReservationStatus.EXPIRED);
+        if (affected == 1) {
+            // Chỉ duy nhất Expiry Worker thắng cuộc mới được nhả kho và mở lại ghế AVAILABLE
             releaseReservationResources(reservation);
             log.info("Phiên giữ chỗ {} đã hết hạn 10 phút, tự động nhả vé", reservationId);
+        } else {
+            log.info("Phiên giữ chỗ {} không còn ở trạng thái PENDING (đã thanh toán hoặc đã hủy), bỏ qua nhả vé", reservationId);
         }
     }
 
@@ -280,12 +282,9 @@ public class ReservationServiceImpl implements ReservationService {
             inventoryService.releaseHeldInventory(item.getSalePhaseId(), item.getQuantity());
             // Nhả hạn mức user
             userSalePhaseCounterService.releaseUserHeldTickets(reservation.getUserId(), item.getSalePhaseId(), item.getQuantity());
-            // Mở lại ghế AVAILABLE nếu là vé ngồi
+            // Mở lại ghế AVAILABLE nguyên tử HELD -> AVAILABLE
             if (item.getEventSeatId() != null) {
-                eventSeatRepository.findById(item.getEventSeatId()).ifPresent(seat -> {
-                    seat.setStatus(SeatStatus.AVAILABLE);
-                    eventSeatRepository.save(seat);
-                });
+                eventSeatRepository.updateSeatStatusAtomic(item.getEventSeatId(), SeatStatus.HELD, SeatStatus.AVAILABLE);
             }
         }
     }

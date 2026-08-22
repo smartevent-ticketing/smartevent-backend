@@ -178,6 +178,7 @@ class ReservationServiceTest {
         when(ticketSalePhaseRepository.findById(salePhaseId)).thenReturn(Optional.of(samplePhase));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(seatedArea));
         when(eventSeatRepository.findById(seatId)).thenReturn(Optional.of(sampleSeat));
+        when(eventSeatRepository.updateSeatStatusAtomic(seatId, SeatStatus.AVAILABLE, SeatStatus.HELD)).thenReturn(1);
 
         ReservationItem savedItem = new ReservationItem(sampleReservation.getId(), ticketTypeId, salePhaseId, seatId, 1, BigDecimal.valueOf(500000));
         when(reservationItemRepository.save(any(ReservationItem.class))).thenReturn(savedItem);
@@ -185,8 +186,7 @@ class ReservationServiceTest {
         ReservationResponse response = reservationService.createReservation(userId, request);
 
         assertNotNull(response);
-        assertEquals(SeatStatus.HELD, sampleSeat.getStatus());
-        verify(eventSeatRepository, times(1)).save(sampleSeat);
+        verify(eventSeatRepository, times(1)).updateSeatStatusAtomic(seatId, SeatStatus.AVAILABLE, SeatStatus.HELD);
         verify(inventoryService, times(1)).holdInventory(salePhaseId, 1);
     }
 
@@ -323,57 +323,55 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("Khách hàng chủ động hủy phiên giữ chỗ: Mở lại ghế AVAILABLE và nhả kho tổng + quota")
+    @DisplayName("Khách hàng chủ động hủy phiên giữ chỗ: Mở lại ghế AVAILABLE và nhả kho tổng + quota bằng Atomic CAS")
     void cancelReservation_Success() {
         UUID resId = sampleReservation.getId();
         ReservationItem item = new ReservationItem(resId, ticketTypeId, salePhaseId, seatId, 1, BigDecimal.valueOf(500000));
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CANCELLED)).thenReturn(1);
         when(reservationItemRepository.findByReservationId(resId)).thenReturn(List.of(item));
-        when(eventSeatRepository.findById(seatId)).thenReturn(Optional.of(sampleSeat));
-
-        sampleSeat.setStatus(SeatStatus.HELD);
 
         reservationService.cancelReservation(resId, userId, false);
 
-        assertEquals(ReservationStatus.CANCELLED, sampleReservation.getStatus());
-        assertEquals(SeatStatus.AVAILABLE, sampleSeat.getStatus());
+        verify(reservationRepository, times(1)).updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CANCELLED);
+        verify(eventSeatRepository, times(1)).updateSeatStatusAtomic(seatId, SeatStatus.HELD, SeatStatus.AVAILABLE);
         verify(inventoryService, times(1)).releaseHeldInventory(salePhaseId, 1);
         verify(userSalePhaseCounterService, times(1)).releaseUserHeldTickets(userId, salePhaseId, 1);
     }
 
     @Test
-    @DisplayName("Xác nhận giữ chỗ thành công khi thanh toán: Chuyển ghế sang SOLD và xác nhận bán vé")
+    @DisplayName("Xác nhận giữ chỗ thành công khi thanh toán: Chuyển ghế sang SOLD và xác nhận bán vé bằng Atomic CAS")
     void confirmReservation_Success() {
         UUID resId = sampleReservation.getId();
         ReservationItem item = new ReservationItem(resId, ticketTypeId, salePhaseId, seatId, 1, BigDecimal.valueOf(500000));
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED)).thenReturn(1);
         when(reservationItemRepository.findByReservationId(resId)).thenReturn(List.of(item));
-        when(eventSeatRepository.findById(seatId)).thenReturn(Optional.of(sampleSeat));
 
         reservationService.confirmReservation(resId);
 
-        assertEquals(ReservationStatus.CONFIRMED, sampleReservation.getStatus());
-        assertEquals(SeatStatus.SOLD, sampleSeat.getStatus());
+        verify(reservationRepository, times(1)).updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
+        verify(eventSeatRepository, times(1)).updateSeatStatusAtomic(seatId, SeatStatus.HELD, SeatStatus.SOLD);
         verify(inventoryService, times(1)).confirmPurchase(salePhaseId, 1);
         verify(userSalePhaseCounterService, times(1)).confirmUserPurchase(userId, salePhaseId, 1);
     }
 
     @Test
-    @DisplayName("Quét hết hạn 10 phút: Tự động chuyển EXPIRED, mở lại ghế và nhả kho vé")
+    @DisplayName("Quét hết hạn 10 phút: Tự động chuyển EXPIRED, mở lại ghế và nhả kho vé bằng Atomic CAS")
     void expireReservation_Success() {
         UUID resId = sampleReservation.getId();
         ReservationItem item = new ReservationItem(resId, ticketTypeId, salePhaseId, seatId, 1, BigDecimal.valueOf(500000));
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.EXPIRED)).thenReturn(1);
         when(reservationItemRepository.findByReservationId(resId)).thenReturn(List.of(item));
-        when(eventSeatRepository.findById(seatId)).thenReturn(Optional.of(sampleSeat));
 
         reservationService.expireReservation(resId);
 
-        assertEquals(ReservationStatus.EXPIRED, sampleReservation.getStatus());
-        assertEquals(SeatStatus.AVAILABLE, sampleSeat.getStatus());
+        verify(reservationRepository, times(1)).updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.EXPIRED);
+        verify(eventSeatRepository, times(1)).updateSeatStatusAtomic(seatId, SeatStatus.HELD, SeatStatus.AVAILABLE);
         verify(inventoryService, times(1)).releaseHeldInventory(salePhaseId, 1);
         verify(userSalePhaseCounterService, times(1)).releaseUserHeldTickets(userId, salePhaseId, 1);
     }

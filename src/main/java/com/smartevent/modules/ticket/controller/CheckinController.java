@@ -26,6 +26,7 @@ public class CheckinController {
 
     private final CheckinService checkinService;
     private final TicketCheckinRepository checkinRepository;
+    private final com.smartevent.modules.event.repository.EventRepository eventRepository;
 
     @PostMapping("/scan")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
@@ -34,13 +35,31 @@ public class CheckinController {
             @Valid @RequestBody CheckinRequest request,
             @CurrentUser UserPrincipal currentUser
     ) {
+        validateEventAccess(request.eventId(), currentUser);
         return ApiResponse.success(checkinService.processCheckin(request, currentUser.getId()));
     }
 
     @GetMapping("/events/{eventId}/history")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
     @Operation(summary = "Xem toàn bộ lịch sử các lượt quét vé tại các cổng của sự kiện")
-    public ApiResponse<List<TicketCheckin>> getCheckinHistory(@PathVariable UUID eventId) {
+    public ApiResponse<List<TicketCheckin>> getCheckinHistory(
+            @PathVariable UUID eventId,
+            @CurrentUser UserPrincipal currentUser
+    ) {
+        validateEventAccess(eventId, currentUser);
         return ApiResponse.success(checkinRepository.findByEventIdOrderByCheckedAtDesc(eventId));
+    }
+
+    private void validateEventAccess(UUID eventId, UserPrincipal currentUser) {
+        if (currentUser.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return;
+        }
+        var event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new com.smartevent.common.error.BusinessException(
+                        com.smartevent.common.error.ErrorCode.EVENT_NOT_FOUND, "Không tìm thấy sự kiện"));
+        if (!event.getOrganizerId().equals(currentUser.getId())) {
+            throw new com.smartevent.common.error.BusinessException(
+                    com.smartevent.common.error.ErrorCode.ACCESS_DENIED, "Bạn không có quyền quản lý hay soát vé sự kiện này");
+        }
     }
 }
