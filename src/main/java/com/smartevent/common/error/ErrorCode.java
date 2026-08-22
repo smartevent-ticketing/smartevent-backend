@@ -59,7 +59,13 @@ public enum ErrorCode {
     TICKET_NOT_FOUND("TICKET_NOT_FOUND", "Ticket record not found", HttpStatus.NOT_FOUND),
     TICKET_INVALID_STATUS("TICKET_INVALID_STATUS", "Ticket is not in a valid status for this operation", HttpStatus.BAD_REQUEST),
     QR_TOKEN_INVALID("QR_TOKEN_INVALID", "Invalid, revoked or expired QR token", HttpStatus.BAD_REQUEST),
-    CHECKIN_EVENT_MISMATCH("CHECKIN_EVENT_MISMATCH", "Ticket does not belong to this event", HttpStatus.BAD_REQUEST);
+    CHECKIN_EVENT_MISMATCH("CHECKIN_EVENT_MISMATCH", "Ticket does not belong to this event", HttpStatus.BAD_REQUEST),
+
+
+    // Billing & Invoice (Module 8)
+    INVOICE_NOT_FOUND("INVOICE_NOT_FOUND", "Invoice record not found", HttpStatus.NOT_FOUND),
+    INVOICE_ALREADY_ISSUED("INVOICE_ALREADY_ISSUED", "Invoice has already been issued for this order", HttpStatus.BAD_REQUEST),
+    INVOICE_INVALID_STATUS("INVOICE_INVALID_STATUS", "Invoice is not in a valid status for this operation", HttpStatus.BAD_REQUEST);
 
     private final String code;
     private final String defaultMessage;
