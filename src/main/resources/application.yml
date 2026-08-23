@@ -49,6 +49,7 @@ spring:
     port: ${SPRING_MAIL_PORT:587}
     username: ${SPRING_MAIL_USERNAME:smartevent.ticketing@gmail.com}
     password: ${SPRING_MAIL_PASSWORD:your_app_password}
+    test-connection: false
     properties:
       mail:
         smtp:
@@ -69,6 +70,9 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    mail:
+      enabled: false
 
 app:
   payment:

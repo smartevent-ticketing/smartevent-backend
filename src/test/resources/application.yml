@@ -38,3 +38,8 @@ app:
       access-key: minioadmin
       secret-key: minioadmin
       bucket: smart-event-test
+
+management:
+  health:
+    mail:
+      enabled: false
