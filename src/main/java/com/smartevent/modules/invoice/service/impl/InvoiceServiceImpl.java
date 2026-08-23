@@ -186,6 +186,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         // Ghi Outbox Event gửi lại hóa đơn bất đồng bộ
         outboxService.publishEvent("INVOICE", invoice.getId(), new com.smartevent.modules.invoice.dto.event.InvoiceCreatedEvent(
                 invoice.getId(),
+                savedDelivery.getId(),
                 invoice.getInvoiceCode(),
                 invoice.getOrderId(),
                 invoice.getUserId(),

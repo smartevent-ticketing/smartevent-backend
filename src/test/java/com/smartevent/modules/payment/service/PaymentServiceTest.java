@@ -134,6 +134,7 @@ class PaymentServiceTest {
         when(orderRepository.findByOrderCode(pendingOrder.getOrderCode())).thenReturn(Optional.of(pendingOrder));
         when(paymentRepository.findFirstByOrderIdAndStatusOrderByCreatedAtDesc(eq(orderId), eq(PaymentStatus.INITIATED)))
                 .thenReturn(Optional.empty());
+        when(reservationService.confirmReservation(pendingOrder.getReservationId())).thenReturn(true);
 
         VNPayIpnResponse response = paymentService.handleVNPayIpn(params);
 
@@ -141,6 +142,39 @@ class PaymentServiceTest {
         assertEquals("Confirm Success", response.message());
         assertEquals(OrderStatus.PAID, pendingOrder.getStatus());
         verify(reservationService, times(1)).confirmReservation(pendingOrder.getReservationId());
+        verify(ticketService, times(1)).issueTicketsForOrder(pendingOrder.getId());
+        verify(invoiceService, times(1)).issueInvoiceForOrder(pendingOrder.getId());
+        verify(webhookEventRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("Xử lý IPN khi khách thanh toán thành công nhưng Reservation đã hết hạn -> Order CANCELLED kèm note đối soát hoàn tiền")
+    void handleVNPayIpn_LatePayment_SetsCancelledAndNotesWithoutRollback() {
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", pendingOrder.getOrderCode());
+        params.put("vnp_Amount", "50000000"); // 500.000 VNĐ * 100
+        params.put("vnp_ResponseCode", "00");
+        params.put("vnp_TransactionNo", "14567890");
+
+        String secureHash = VNPayUtils.hashAllFields(params, vnPayProperties.getHashSecret());
+        params.put("vnp_SecureHash", secureHash);
+
+        when(webhookEventRepository.existsByProviderAndProviderEventId(eq("VNPAY"), any())).thenReturn(false);
+        when(orderRepository.findByOrderCode(pendingOrder.getOrderCode())).thenReturn(Optional.of(pendingOrder));
+        when(paymentRepository.findFirstByOrderIdAndStatusOrderByCreatedAtDesc(eq(orderId), eq(PaymentStatus.INITIATED)))
+                .thenReturn(Optional.empty());
+
+        // Giả lập phiên giữ chỗ đã hết hạn 10 phút trước đó
+        when(reservationService.confirmReservation(pendingOrder.getReservationId())).thenReturn(false);
+
+        VNPayIpnResponse response = paymentService.handleVNPayIpn(params);
+
+        assertEquals("00", response.rspCode());
+        assertEquals("Confirm Success", response.message());
+        assertEquals(OrderStatus.CANCELLED, pendingOrder.getStatus());
+        assertTrue(pendingOrder.getCustomerNote().contains("LATE_PAYMENT_EXPIRED"));
+        verify(ticketService, never()).issueTicketsForOrder(any());
+        verify(invoiceService, never()).issueInvoiceForOrder(any());
         verify(webhookEventRepository, times(1)).save(any());
     }
 

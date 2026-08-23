@@ -229,18 +229,18 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional
-    public void confirmReservation(UUID reservationId) {
-        Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy phiên giữ chỗ"));
-
-        if (reservation.isExpired()) {
-            throw new ReservationException(ErrorCode.RESERVATION_EXPIRED, "Phiên giữ chỗ đã quá hạn 10 phút");
+    public boolean confirmReservation(UUID reservationId) {
+        Reservation reservation = reservationRepository.findById(reservationId).orElse(null);
+        if (reservation == null || reservation.isExpired()) {
+            log.warn("Không thể xác nhận phiên giữ chỗ {}: không tồn tại hoặc đã quá hạn 10 phút", reservationId);
+            return false;
         }
 
         // 🔥 ATOMIC CAS: Chỉ chuyển PENDING -> CONFIRMED nếu chưa bị Expiry Worker chuyển thành EXPIRED
         int affected = reservationRepository.updateStatusAtomic(reservationId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
         if (affected == 0) {
-            throw new ReservationException(ErrorCode.RESERVATION_EXPIRED, "Phiên giữ chỗ đã hết hạn hoặc đã bị hủy trước đó");
+            log.warn("CAS Confirm thất bại cho phiên giữ chỗ {}: trạng thái đã bị Expiry Worker chuyển sang EXPIRED hoặc CANCELLED", reservationId);
+            return false;
         }
 
         // Chỉ duy nhất luồng thắng cuộc mới được chốt chuyển ghế HELD -> SOLD và trừ kho chính thức
@@ -254,6 +254,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
         log.info("Xác nhận thành công phiên giữ chỗ {}", reservationId);
+        return true;
     }
 
     @Override

@@ -350,12 +350,28 @@ class ReservationServiceTest {
         when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED)).thenReturn(1);
         when(reservationItemRepository.findByReservationId(resId)).thenReturn(List.of(item));
 
-        reservationService.confirmReservation(resId);
+        boolean result = reservationService.confirmReservation(resId);
 
+        assertTrue(result);
         verify(reservationRepository, times(1)).updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
         verify(eventSeatRepository, times(1)).updateSeatStatusAtomic(seatId, SeatStatus.HELD, SeatStatus.SOLD);
         verify(inventoryService, times(1)).confirmPurchase(salePhaseId, 1);
         verify(userSalePhaseCounterService, times(1)).confirmUserPurchase(userId, salePhaseId, 1);
+    }
+
+    @Test
+    @DisplayName("Xác nhận giữ chỗ khi đã bị Expiry Worker chuyển sang EXPIRED -> Trả về false an toàn không ném Exception")
+    void confirmReservation_AlreadyExpired_ReturnsFalse() {
+        UUID resId = sampleReservation.getId();
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED)).thenReturn(0);
+
+        boolean result = reservationService.confirmReservation(resId);
+
+        assertFalse(result);
+        verify(inventoryService, never()).confirmPurchase(any(), anyInt());
+        verify(eventSeatRepository, never()).updateSeatStatusAtomic(any(), any(), any());
     }
 
     @Test

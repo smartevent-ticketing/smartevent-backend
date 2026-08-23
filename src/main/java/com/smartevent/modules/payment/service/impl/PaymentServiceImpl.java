@@ -173,26 +173,17 @@ public class PaymentServiceImpl implements PaymentService {
             // Thanh toán thành công từ cổng VNPay
             payment.setPaidAt(Instant.now());
 
-            boolean confirmed = false;
+            boolean confirmed = true;
             if (order.getReservationId() != null) {
-                try {
-                    reservationService.confirmReservation(order.getReservationId());
-                    ticketService.issueTicketsForOrder(order.getId());
-                    invoiceService.issueInvoiceForOrder(order.getId());
-                    confirmed = true;
-                    log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
-                } catch (Exception ex) {
-                    log.error("CẢNH BÁO LATE-PAYMENT: VNPay đã thu tiền (TxnNo: {}) nhưng phiên giữ chỗ {} đã hết hạn/bị giải phóng: {}", 
-                            transactionNo, order.getReservationId(), ex.getMessage());
-                    confirmed = false;
-                }
-            } else {
-                confirmed = true;
+                confirmed = reservationService.confirmReservation(order.getReservationId());
             }
 
             if (confirmed) {
                 payment.setStatus(PaymentStatus.SUCCESS);
                 order.setStatus(OrderStatus.PAID);
+                ticketService.issueTicketsForOrder(order.getId());
+                invoiceService.issueInvoiceForOrder(order.getId());
+                log.info("Đã chốt vé thành công (HELD -> SOLD) cho phiên giữ chỗ {}", order.getReservationId());
             } else {
                 // Đánh dấu giao dịch LATE PAYMENT để đối soát hoàn tiền, KHÔNG rollback database
                 payment.setStatus(PaymentStatus.SUCCESS);

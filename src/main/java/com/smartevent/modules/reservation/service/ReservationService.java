@@ -19,8 +19,8 @@ public interface ReservationService {
     // 4. Khách hàng chủ động hủy phiên giữ chỗ
     void cancelReservation(UUID reservationId, UUID currentUserId, boolean isAdmin);
 
-    // 5. Xác nhận giữ chỗ thành công khi thanh toán xong (Chuyển HELD -> SOLD)
-    void confirmReservation(UUID reservationId);
+    // 5. Xác nhận giữ chỗ thành công khi thanh toán xong (Chuyển HELD -> SOLD, trả về true nếu thành công, false nếu đã hết hạn)
+    boolean confirmReservation(UUID reservationId);
 
     // 6. Quét hết hạn 10 phút (Nhả vé và mở khóa ghế)
     void expireReservation(UUID reservationId);
