@@ -26,6 +26,12 @@ public class EventAdministrationController {
         return ApiResponse.success(eventQueryService.getEventsForAdministration(status, pageable));
     }
 
+    @GetMapping("/pending")
+    public ApiResponse<PageResponse<EventResponse>> getPendingEvents(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ApiResponse.success(eventQueryService.getEventsForAdministration(EventStatus.PENDING_APPROVAL, pageable));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<EventResponse> detail(@PathVariable UUID id) {
         return ApiResponse.success(eventQueryService.getEventForAdministration(id));

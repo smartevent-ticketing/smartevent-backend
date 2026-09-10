@@ -320,4 +320,45 @@ class EventServiceTest {
 
         assertEquals(ErrorCode.EVENT_NOT_PUBLISHED, exception.getErrorCode());
     }
+
+    @Test
+    @DisplayName("Chủ sở hữu xem sự kiện theo ID khi còn DRAFT -> Thành công")
+    void getEventById_Draft_OwnerCanView() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setStatus(EventStatus.DRAFT);
+        event.setName("Draft Event");
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        var response = eventService.getEventById(eventId, organizerId, false);
+
+        assertNotNull(response);
+        assertEquals(eventId, response.id());
+        assertEquals(EventStatus.DRAFT, response.status());
+    }
+
+    @Test
+    @DisplayName("Admin xem sự kiện theo ID khi còn DRAFT -> Thành công")
+    void getEventById_Draft_AdminCanView() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setStatus(EventStatus.DRAFT);
+        event.setName("Draft Event");
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+
+        var response = eventService.getEventById(eventId, adminId, true);
+
+        assertNotNull(response);
+        assertEquals(eventId, response.id());
+        assertEquals(EventStatus.DRAFT, response.status());
+    }
 }

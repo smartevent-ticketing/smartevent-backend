@@ -39,6 +39,11 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    public EventResponse getEventById(UUID id, UUID currentUserId, boolean isAdmin) {
+        return eventQueryService.getEventById(id, currentUserId, isAdmin);
+    }
+
+    @Override
     public PageResponse<EventResponse> getPublishedEvents(Pageable pageable) {
         return eventQueryService.getPublishedEvents(pageable);
     }

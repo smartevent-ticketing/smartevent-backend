@@ -16,6 +16,7 @@ public interface EventService {
     EventResponse getEventBySlug(String slug);
 
     EventResponse getEventById(UUID id);
+    EventResponse getEventById(UUID id, UUID currentUserId, boolean isAdmin);
 
     PageResponse<EventResponse> getPublishedEvents(Pageable pageable);
 

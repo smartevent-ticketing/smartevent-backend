@@ -75,8 +75,13 @@ public class EventController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Lấy thông tin chi tiết sự kiện theo ID")
-    public ApiResponse<EventResponse> getEventById(@PathVariable UUID id) {
-        return ApiResponse.success(eventService.getEventById(id));
+    public ApiResponse<EventResponse> getEventById(
+            @PathVariable UUID id,
+            @CurrentUser UserPrincipal currentUser
+    ) {
+        boolean isAdmin = checkIsAdmin(currentUser);
+        UUID currentUserId = currentUser != null ? currentUser.getId() : null;
+        return ApiResponse.success(eventService.getEventById(id, currentUserId, isAdmin));
     }
 
     @PostMapping("/{id}/submit")

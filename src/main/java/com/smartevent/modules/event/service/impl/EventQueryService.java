@@ -51,9 +51,15 @@ public class EventQueryService {
 
     @Transactional(readOnly = true)
     public EventResponse getEventById(UUID id) {
+        return getEventById(id, null, false);
+    }
+
+    @Transactional(readOnly = true)
+    public EventResponse getEventById(UUID id, UUID currentUserId, boolean isAdmin) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
-        if (event.getStatus() != EventStatus.PUBLISHED) {
+        boolean isOwner = currentUserId != null && event.getOrganizerId() != null && event.getOrganizerId().equals(currentUserId);
+        if (event.getStatus() != EventStatus.PUBLISHED && !isAdmin && !isOwner) {
             throw new EventException(ErrorCode.EVENT_NOT_PUBLISHED, "Sự kiện chưa được công bố công khai");
         }
         return toResponse(event);
