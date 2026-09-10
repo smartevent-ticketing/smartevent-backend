@@ -13,6 +13,15 @@ import java.util.UUID;
 @Repository
 public interface ReservationRepository extends JpaRepository<Reservation, UUID> {
 
+    @org.springframework.data.jpa.repository.Query("select r.eventId from Reservation r where r.id = :id")
+    Optional<UUID> findEventIdById(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select r from Reservation r where r.id = :id")
+    Optional<Reservation> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    List<Reservation> findByEventIdAndStatus(UUID eventId, ReservationStatus status);
+
     List<Reservation> findByUserId(UUID userId);
 
     Optional<Reservation> findByUserIdAndEventIdAndStatus(UUID userId, UUID eventId, ReservationStatus status);

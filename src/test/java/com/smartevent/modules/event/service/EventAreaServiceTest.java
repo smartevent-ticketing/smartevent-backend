@@ -14,17 +14,14 @@ import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
 import com.smartevent.modules.event.repository.VenueRepository;
 import com.smartevent.modules.event.service.impl.EventAreaServiceImpl;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -44,8 +41,17 @@ class EventAreaServiceTest {
     @Mock
     private EventSeatRepository eventSeatRepository;
 
-    @InjectMocks
     private EventAreaServiceImpl eventAreaService;
+
+    @BeforeEach
+    void composeServices() {
+        eventAreaService = new EventAreaServiceImpl(
+                new EventAccessPolicy(),
+                eventRepository,
+                venueRepository,
+                eventAreaRepository,
+                eventSeatRepository, mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class));
+    }
 
     @Test
     @DisplayName("Tạo khu vực vé thành công khi sức chứa hợp lệ")
@@ -66,7 +72,7 @@ class EventAreaServiceTest {
                 "Khán Đài VIP", AreaType.SEATED, 500, 1, "Mô tả khán đài VIP"
         );
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventAreaRepository.existsByEventIdAndName(eventId, "Khán Đài VIP")).thenReturn(false);
         when(venueRepository.findById(venueId)).thenReturn(Optional.of(venue));
         when(eventAreaRepository.sumCapacityByEventIdExcluding(eventId, null)).thenReturn(1000);
@@ -102,7 +108,7 @@ class EventAreaServiceTest {
 
         EventAreaRequest request = new EventAreaRequest("Fanzone", AreaType.STANDING, 1000, 0, null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventAreaService.createArea(eventId, hackerId, false, request)
@@ -125,7 +131,7 @@ class EventAreaServiceTest {
 
         EventAreaRequest request = new EventAreaRequest("Fanzone", AreaType.STANDING, 1000, 0, null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventAreaService.createArea(eventId, organizerId, false, request)
@@ -151,7 +157,7 @@ class EventAreaServiceTest {
 
         EventAreaRequest request = new EventAreaRequest("Khán Đài Lớn", AreaType.SEATED, 600, 1, null);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventAreaRepository.existsByEventIdAndName(eventId, "Khán Đài Lớn")).thenReturn(false);
         when(venueRepository.findById(venueId)).thenReturn(Optional.of(venue));
         when(eventAreaRepository.sumCapacityByEventIdExcluding(eventId, null)).thenReturn(500); // 500 + 600 = 1100 > 1000
@@ -182,7 +188,7 @@ class EventAreaServiceTest {
         EventAreaRequest request = new EventAreaRequest("Khán Đài A", AreaType.SEATED, 200, 1, null); // Giảm xuống 200
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventSeatRepository.countByEventAreaId(areaId)).thenReturn(300L); // Nhưng đang có sẵn 300 ghế!
 
         EventException exception = assertThrows(EventException.class, () ->
@@ -209,11 +215,10 @@ class EventAreaServiceTest {
         event.setStatus(EventStatus.DRAFT);
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         eventAreaService.deleteArea(areaId, organizerId, false);
 
         verify(eventAreaRepository, times(1)).delete(area);
     }
 }
-

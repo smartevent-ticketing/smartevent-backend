@@ -36,17 +36,15 @@ public class UserSalePhaseCounterServiceImpl implements UserSalePhaseCounterServ
             throw new TicketingException(ErrorCode.VALIDATION_ERROR, "Số lượng giữ vé phải lớn hơn 0");
         }
 
-        // Nếu đợt bán không giới hạn số vé mỗi người mua -> bỏ qua kiểm tra
-        if (maxPerUser == null || maxPerUser <= 0) {
-            return;
-        }
+        // Unlimited phases still need a held balance for confirmation and release.
+        int limit = maxPerUser != null && maxPerUser > 0 ? maxPerUser : Integer.MAX_VALUE;
 
         // 1. Đảm bảo bản ghi tồn tại bằng Native UPSERT chống duplicate key
         userSalePhaseCounterRepository.upsertUserCounter(userId, salePhaseId);
 
         // 2. Chạy Atomic Conditional UPDATE
         int updatedRows = userSalePhaseCounterRepository.atomicHoldUserQuantity(
-                userId, salePhaseId, quantity, maxPerUser, Instant.now()
+                userId, salePhaseId, quantity, limit, Instant.now()
         );
 
         if (updatedRows == 0) {

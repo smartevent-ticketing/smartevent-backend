@@ -99,6 +99,7 @@ public class VNPayUtils {
 
     // 4. Kiểm tra tính hợp lệ của chữ ký phản hồi
     public static boolean verifySignature(Map<String, String> fields, String secureHash, String secretKey) {
+        if (secureHash == null || secureHash.isBlank() || secretKey == null || secretKey.isBlank()) return false;
         Map<String, String> cleanFields = new HashMap<>(fields);
         cleanFields.remove("vnp_SecureHash");
         cleanFields.remove("vnp_SecureHashType");

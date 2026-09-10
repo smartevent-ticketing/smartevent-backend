@@ -1,0 +1,20 @@
+allprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('java')) {
+            def reviewSources = project.sourceSets.create('backendReview') {
+                java.setSrcDirs([project.file('.review/backend-2026-09-10/src')])
+                resources.setSrcDirs([])
+                compileClasspath = project.sourceSets.main.output + project.configurations.testCompileClasspath
+                runtimeClasspath = output + project.sourceSets.main.output + project.configurations.testRuntimeClasspath
+            }
+            project.tasks.register('backendBusinessReview', Test) {
+                description = 'Isolated business review: assertions describe intended behavior and expose current defects.'
+                testClassesDirs = reviewSources.output.classesDirs
+                classpath = reviewSources.runtimeClasspath
+                useJUnitPlatform()
+                reports.junitXml.outputLocation = project.layout.projectDirectory.dir('.review/backend-2026-09-10/results')
+                reports.html.outputLocation = project.layout.projectDirectory.dir('.review/backend-2026-09-10/report')
+            }
+        }
+    }
+}

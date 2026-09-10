@@ -1,38 +1,34 @@
 package com.smartevent.modules.event.service;
 
-import com.smartevent.common.api.PageResponse;
-import com.smartevent.common.enums.EventFileType;
 import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import com.smartevent.modules.event.dto.request.UpdateEventRequest;
 import com.smartevent.modules.event.dto.response.EventResponse;
-import com.smartevent.modules.event.entity.Category;
 import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventCategory;
-import com.smartevent.modules.event.entity.EventFile;
 import com.smartevent.modules.event.entity.Venue;
 import com.smartevent.modules.event.exception.EventException;
-import com.smartevent.modules.event.repository.*;
+import com.smartevent.modules.event.repository.CategoryRepository;
+import com.smartevent.modules.event.repository.EventCategoryRepository;
+import com.smartevent.modules.event.repository.EventFileRepository;
+import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.repository.VenueRepository;
+import com.smartevent.modules.event.service.impl.EventCommandService;
+import com.smartevent.modules.event.service.impl.EventLifecycleService;
+import com.smartevent.modules.event.service.impl.EventQueryService;
 import com.smartevent.modules.event.service.impl.EventServiceImpl;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -55,8 +51,41 @@ class EventServiceTest {
     @Mock
     private EventCategoryRepository eventCategoryRepository;
 
-    @InjectMocks
     private EventServiceImpl eventService;
+
+    @BeforeEach
+    void composeServices() {
+        eventService = new EventServiceImpl(
+                new EventCommandService(
+                        new EventAccessPolicy(),
+                        eventRepository,
+                        categoryRepository,
+                        venueRepository,
+                        eventFileRepository,
+                        eventCategoryRepository,
+                        new EventQueryService(
+                                eventRepository,
+                                categoryRepository,
+                                venueRepository,
+                                eventFileRepository,
+                                eventCategoryRepository), mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class)),
+                new EventLifecycleService(
+                        new EventAccessPolicy(),
+                        eventRepository,
+                        eventCategoryRepository,
+                        new EventQueryService(
+                                eventRepository,
+                                categoryRepository,
+                                venueRepository,
+                                eventFileRepository,
+                                eventCategoryRepository), mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class), mock(org.springframework.context.ApplicationEventPublisher.class)),
+                new EventQueryService(
+                        eventRepository,
+                        categoryRepository,
+                        venueRepository,
+                        eventFileRepository,
+                        eventCategoryRepository));
+    }
 
     @Test
     @DisplayName("Tạo sự kiện thành công - Lưu Event trạng thái DRAFT, lưu Categories và Files")
@@ -160,7 +189,7 @@ class EventServiceTest {
                 "Hà Nội", null, null, null, false, null, null, false, 50
         );
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(existingEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(existingEvent));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventService.updateEvent(eventId, hackerId, false, request)
@@ -209,7 +238,7 @@ class EventServiceTest {
         event.setEndTime(end);
         event.setStatus(EventStatus.PENDING_APPROVAL);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventRepository.hasVenueTimeConflict(venueId, start, end, eventId)).thenReturn(false);
         when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -249,7 +278,7 @@ class EventServiceTest {
         event.setOrganizerId(organizerId);
         event.setStatus(EventStatus.PUBLISHED);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EventResponse response = eventService.cancelEvent(eventId, organizerId, false, "Thời tiết xấu");
@@ -292,4 +321,3 @@ class EventServiceTest {
         assertEquals(ErrorCode.EVENT_NOT_PUBLISHED, exception.getErrorCode());
     }
 }
-

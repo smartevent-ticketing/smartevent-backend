@@ -1,41 +1,38 @@
 package com.smartevent.modules.ordering.service;
 
-import com.smartevent.common.enums.*;
+import com.smartevent.common.enums.OrderStatus;
+import com.smartevent.common.enums.PaymentMethod;
+import com.smartevent.common.enums.ReservationStatus;
 import com.smartevent.common.error.ErrorCode;
-import com.smartevent.modules.event.entity.EventSeat;
 import com.smartevent.modules.event.repository.EventSeatRepository;
 import com.smartevent.modules.ordering.dto.request.CreateOrderRequest;
 import com.smartevent.modules.ordering.dto.response.OrderResponse;
 import com.smartevent.modules.ordering.entity.Order;
-import com.smartevent.modules.ordering.entity.OrderItem;
 import com.smartevent.modules.ordering.exception.OrderingException;
 import com.smartevent.modules.ordering.repository.OrderItemRepository;
 import com.smartevent.modules.ordering.repository.OrderRepository;
+import com.smartevent.modules.ordering.service.impl.OrderQueryService;
 import com.smartevent.modules.ordering.service.impl.OrderServiceImpl;
 import com.smartevent.modules.reservation.entity.Reservation;
 import com.smartevent.modules.reservation.entity.ReservationItem;
 import com.smartevent.modules.reservation.repository.ReservationItemRepository;
 import com.smartevent.modules.reservation.repository.ReservationRepository;
+import com.smartevent.modules.reservation.service.ReservationCheckoutService;
 import com.smartevent.modules.reservation.service.ReservationService;
-import com.smartevent.modules.ticketing.entity.TicketSalePhase;
-import com.smartevent.modules.ticketing.entity.TicketType;
 import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -52,8 +49,22 @@ class OrderServiceTest {
     @Mock private TicketSalePhaseRepository ticketSalePhaseRepository;
     @Mock private EventSeatRepository eventSeatRepository;
 
-    @InjectMocks
+    @Mock private com.smartevent.modules.event.repository.EventRepository eventRepository;
     private OrderServiceImpl orderService;
+
+    @BeforeEach
+    void composeServices() {
+        orderService = new OrderServiceImpl(
+                new OrderQueryService(
+                        orderItemRepository,
+                        ticketTypeRepository,
+                        ticketSalePhaseRepository,
+                        eventSeatRepository),
+                orderRepository,
+                orderItemRepository,
+                new ReservationCheckoutService(reservationRepository, reservationItemRepository, eventRepository),
+                new OrderLifecycleService(orderRepository, reservationService, eventRepository));
+    }
 
     private UUID userId;
     private UUID reservationId;
@@ -79,7 +90,11 @@ class OrderServiceTest {
     void createOrder_Success() {
         CreateOrderRequest request = new CreateOrderRequest(reservationId, "Ghi chu", PaymentMethod.VNPAY);
 
-        when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
+        when(reservationRepository.findEventIdById(reservationId)).thenReturn(Optional.of(validReservation.getEventId()));
+        var event = new com.smartevent.modules.event.entity.Event();
+        event.setStatus(com.smartevent.common.enums.EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForShare(validReservation.getEventId())).thenReturn(Optional.of(event));
+        when(reservationRepository.findByIdForUpdate(reservationId)).thenReturn(Optional.of(validReservation));
         when(orderRepository.findByReservationId(reservationId)).thenReturn(Optional.empty());
         when(reservationItemRepository.findByReservationId(reservationId)).thenReturn(List.of(item1, item2));
         when(orderRepository.existsByOrderCode(any())).thenReturn(false);
@@ -101,7 +116,7 @@ class OrderServiceTest {
     @DisplayName("Tạo đơn thất bại khi không tìm thấy phiên giữ chỗ")
     void createOrder_ReservationNotFound() {
         CreateOrderRequest request = new CreateOrderRequest(reservationId, null, PaymentMethod.VNPAY);
-        when(reservationRepository.findById(reservationId)).thenReturn(Optional.empty());
+        when(reservationRepository.findEventIdById(reservationId)).thenReturn(Optional.empty());
 
         OrderingException ex = assertThrows(OrderingException.class,
                 () -> orderService.createOrderFromReservation(userId, request));
@@ -113,7 +128,11 @@ class OrderServiceTest {
     void createOrder_AccessDenied() {
         UUID otherUserId = UUID.randomUUID();
         CreateOrderRequest request = new CreateOrderRequest(reservationId, null, PaymentMethod.VNPAY);
-        when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
+        when(reservationRepository.findEventIdById(reservationId)).thenReturn(Optional.of(validReservation.getEventId()));
+        var event = new com.smartevent.modules.event.entity.Event();
+        event.setStatus(com.smartevent.common.enums.EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForShare(validReservation.getEventId())).thenReturn(Optional.of(event));
+        when(reservationRepository.findByIdForUpdate(reservationId)).thenReturn(Optional.of(validReservation));
 
         OrderingException ex = assertThrows(OrderingException.class,
                 () -> orderService.createOrderFromReservation(otherUserId, request));
@@ -125,7 +144,11 @@ class OrderServiceTest {
     void createOrder_ReservationExpired() {
         validReservation.setExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
         CreateOrderRequest request = new CreateOrderRequest(reservationId, null, PaymentMethod.VNPAY);
-        when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
+        when(reservationRepository.findEventIdById(reservationId)).thenReturn(Optional.of(validReservation.getEventId()));
+        var event = new com.smartevent.modules.event.entity.Event();
+        event.setStatus(com.smartevent.common.enums.EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForShare(validReservation.getEventId())).thenReturn(Optional.of(event));
+        when(reservationRepository.findByIdForUpdate(reservationId)).thenReturn(Optional.of(validReservation));
 
         OrderingException ex = assertThrows(OrderingException.class,
                 () -> orderService.createOrderFromReservation(userId, request));
@@ -140,7 +163,7 @@ class OrderServiceTest {
         order.setId(orderId);
         order.setStatus(OrderStatus.PENDING_PAYMENT);
 
-        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
         orderService.cancelOrder(orderId, userId, false);
 
@@ -156,7 +179,7 @@ class OrderServiceTest {
         order.setId(orderId);
         order.setStatus(OrderStatus.PAID);
 
-        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
         OrderingException ex = assertThrows(OrderingException.class,
                 () -> orderService.cancelOrder(orderId, userId, false));

@@ -12,6 +12,21 @@ import java.util.UUID;
 @Repository
 public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select t from Ticket t where t.id = :id")
+    Optional<Ticket> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Query("select t.eventId from Ticket t where t.id = :id")
+    Optional<UUID> findEventIdById(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Query("select t.id from Ticket t where t.ticketCode = :code")
+    Optional<UUID> findIdByTicketCode(@org.springframework.data.repository.query.Param("code") String code);
+
+    List<Ticket> findByEventIdOrderByCreatedAtDesc(UUID eventId);
+
+    @org.springframework.data.jpa.repository.Query("select t.id from Ticket t where t.eventId = :eventId order by t.id")
+    List<UUID> findIdsByEventId(@org.springframework.data.repository.query.Param("eventId") UUID eventId);
+
     // 1. Tìm vé theo mã hiển thị duy nhất (dùng khi check-in hoặc tra cứu)
     Optional<Ticket> findByTicketCode(String ticketCode);
 

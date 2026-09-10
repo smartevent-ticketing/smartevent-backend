@@ -8,6 +8,7 @@ import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.ticketing.dto.request.TicketPhaseRuleRequest;
 import com.smartevent.modules.ticketing.dto.request.TicketSalePhaseRequest;
 import com.smartevent.modules.ticketing.dto.response.TicketPhaseRuleResponse;
@@ -20,21 +21,17 @@ import com.smartevent.modules.ticketing.repository.TicketPhaseRuleRepository;
 import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.impl.TicketSalePhaseServiceImpl;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -60,8 +57,19 @@ class TicketSalePhaseServiceTest {
     @Mock
     private InventoryService inventoryService;
 
-    @InjectMocks
     private TicketSalePhaseServiceImpl ticketSalePhaseService;
+
+    @BeforeEach
+    void composeServices() {
+        ticketSalePhaseService = new TicketSalePhaseServiceImpl(
+                new EventAccessPolicy(),
+                ticketTypeRepository,
+                eventRepository,
+                eventAreaRepository,
+                ticketSalePhaseRepository,
+                ticketPhaseRuleRepository,
+                inventoryService);
+    }
 
     private UUID eventId;
     private UUID areaId;
@@ -112,7 +120,7 @@ class TicketSalePhaseServiceTest {
         );
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
         when(ticketSalePhaseRepository.sumQuantityByEventAreaIdExcluding(areaId, null)).thenReturn(0);
         when(ticketSalePhaseRepository.save(any(TicketSalePhase.class))).thenReturn(samplePhase);
@@ -138,7 +146,7 @@ class TicketSalePhaseServiceTest {
         );
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request)
@@ -156,7 +164,7 @@ class TicketSalePhaseServiceTest {
         );
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea)); // capacity = 1000
         when(ticketSalePhaseRepository.sumQuantityByEventAreaIdExcluding(areaId, null)).thenReturn(500); // 500 + 600 = 1100 > 1000
 
@@ -177,7 +185,7 @@ class TicketSalePhaseServiceTest {
         );
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketSalePhaseService.createSalePhase(ticketTypeId, strangerId, false, request)
@@ -190,7 +198,7 @@ class TicketSalePhaseServiceTest {
     void updateStatus_ValidTransition_Success() {
         when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase)); // status DRAFT
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketSalePhaseRepository.save(any(TicketSalePhase.class))).thenReturn(samplePhase);
 
         TicketSalePhaseResponse response = ticketSalePhaseService.updateStatus(phaseId, organizerId, false, SalePhaseStatus.ACTIVE);
@@ -206,7 +214,7 @@ class TicketSalePhaseServiceTest {
 
         when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketSalePhaseService.updateStatus(phaseId, organizerId, false, SalePhaseStatus.ACTIVE)
@@ -221,7 +229,7 @@ class TicketSalePhaseServiceTest {
 
         when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketSalePhaseService.deleteSalePhase(phaseId, organizerId, false)
@@ -237,7 +245,7 @@ class TicketSalePhaseServiceTest {
 
         when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketPhaseRuleRepository.existsBySalePhaseIdAndRuleType(phaseId, "ACCESS_CODE")).thenReturn(false);
         when(ticketPhaseRuleRepository.save(any(TicketPhaseRule.class))).thenReturn(rule);
 
@@ -255,7 +263,7 @@ class TicketSalePhaseServiceTest {
 
         when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketPhaseRuleRepository.existsBySalePhaseIdAndRuleType(phaseId, "ACCESS_CODE")).thenReturn(true);
 
         TicketingException ex = assertThrows(TicketingException.class, () ->

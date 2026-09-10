@@ -137,7 +137,7 @@ class AuthServiceTest {
         RefreshToken validToken = new RefreshToken(mockUser, "tokenHash", futureExpiry);
 
         when(jwtTokenProvider.hashToken("validRawRefreshToken")).thenReturn("tokenHash");
-        when(refreshTokenRepository.findByTokenHashWithUser("tokenHash")).thenReturn(Optional.of(validToken));
+        when(refreshTokenRepository.findByTokenHashForUpdate("tokenHash")).thenReturn(Optional.of(validToken));
         when(jwtTokenProvider.generateAccessToken(any(UserPrincipal.class))).thenReturn("new.access.token");
         when(jwtTokenProvider.generateSecureRandomToken()).thenReturn("newRawRefreshToken");
         when(jwtTokenProvider.hashToken("newRawRefreshToken")).thenReturn("newTokenHash");
@@ -160,7 +160,7 @@ class AuthServiceTest {
         revokedToken.revoke(); // Đã bị thu hồi trước đó
 
         when(jwtTokenProvider.hashToken("revokedRawToken")).thenReturn("tokenHash");
-        when(refreshTokenRepository.findByTokenHashWithUser("tokenHash")).thenReturn(Optional.of(revokedToken));
+        when(refreshTokenRepository.findByTokenHashForUpdate("tokenHash")).thenReturn(Optional.of(revokedToken));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> authService.refreshToken(request));
         assertEquals(ErrorCode.INVALID_CREDENTIALS, ex.getErrorCode());

@@ -1,6 +1,10 @@
 package com.smartevent.modules.reservation.service;
 
-import com.smartevent.common.enums.*;
+import com.smartevent.common.enums.AreaType;
+import com.smartevent.common.enums.EventStatus;
+import com.smartevent.common.enums.ReservationStatus;
+import com.smartevent.common.enums.SalePhaseStatus;
+import com.smartevent.common.enums.SeatStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
@@ -16,6 +20,9 @@ import com.smartevent.modules.reservation.entity.ReservationItem;
 import com.smartevent.modules.reservation.exception.ReservationException;
 import com.smartevent.modules.reservation.repository.ReservationItemRepository;
 import com.smartevent.modules.reservation.repository.ReservationRepository;
+import com.smartevent.modules.reservation.service.impl.ReservationItemValidator;
+import com.smartevent.modules.reservation.service.impl.ReservationQueryService;
+import com.smartevent.modules.reservation.service.impl.ReservationResources;
 import com.smartevent.modules.reservation.service.impl.ReservationServiceImpl;
 import com.smartevent.modules.ticketing.entity.TicketSalePhase;
 import com.smartevent.modules.ticketing.entity.TicketType;
@@ -23,24 +30,20 @@ import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.InventoryService;
 import com.smartevent.modules.ticketing.service.UserSalePhaseCounterService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,8 +68,31 @@ class ReservationServiceTest {
     @Mock
     private UserSalePhaseCounterService userSalePhaseCounterService;
 
-    @InjectMocks
     private ReservationServiceImpl reservationService;
+
+    @BeforeEach
+    void composeServices() {
+        reservationService = new ReservationServiceImpl(
+                new ReservationItemValidator(
+                        eventAreaRepository,
+                        eventSeatRepository,
+                        ticketTypeRepository,
+                        ticketSalePhaseRepository),
+                new ReservationResources(
+                        reservationItemRepository,
+                        eventSeatRepository,
+                        inventoryService,
+                        userSalePhaseCounterService),
+                new ReservationQueryService(
+                        reservationItemRepository,
+                        eventRepository,
+                        eventSeatRepository,
+                        ticketTypeRepository,
+                        ticketSalePhaseRepository),
+                reservationRepository,
+                reservationItemRepository,
+                eventRepository);
+    }
 
     private UUID userId;
     private UUID eventId;
@@ -143,7 +169,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), "key-1");
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
@@ -171,7 +197,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), "key-2");
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
@@ -221,6 +247,32 @@ class ReservationServiceTest {
     }
 
     @Test
+    void createReservation_RejectsIdempotencyKeyFromAnotherUser() {
+        var request = new CreateReservationRequest(eventId, List.of(), "shared-key");
+        when(reservationRepository.findByIdempotencyKey("shared-key")).thenReturn(Optional.of(sampleReservation));
+
+        ReservationException ex = assertThrows(ReservationException.class,
+                () -> reservationService.createReservation(UUID.randomUUID(), request));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        verifyNoInteractions(eventRepository, reservationItemRepository, inventoryService, userSalePhaseCounterService);
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void createReservation_RejectsIdempotencyKeyFromAnotherEvent() {
+        var request = new CreateReservationRequest(UUID.randomUUID(), List.of(), "shared-key");
+        when(reservationRepository.findByIdempotencyKey("shared-key")).thenReturn(Optional.of(sampleReservation));
+
+        ReservationException ex = assertThrows(ReservationException.class,
+                () -> reservationService.createReservation(userId, request));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, ex.getErrorCode());
+        verifyNoInteractions(eventRepository, reservationItemRepository, inventoryService, userSalePhaseCounterService);
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Ném EVENT_NOT_PUBLISHED khi sự kiện chưa mở bán (DRAFT)")
     void createReservation_EventNotPublished_ThrowsException() {
         sampleEvent.setStatus(EventStatus.DRAFT);
@@ -228,7 +280,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), null);
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
 
         ReservationException ex = assertThrows(ReservationException.class, () ->
                 reservationService.createReservation(userId, request)
@@ -244,8 +296,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), null);
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
-        when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
         when(ticketSalePhaseRepository.findById(salePhaseId)).thenReturn(Optional.of(samplePhase));
 
@@ -263,8 +314,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), null);
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
-        when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
         when(ticketSalePhaseRepository.findById(salePhaseId)).thenReturn(Optional.of(samplePhase));
 
@@ -282,7 +332,7 @@ class ReservationServiceTest {
         CreateReservationRequest request = new CreateReservationRequest(eventId, List.of(itemReq), null);
 
         when(reservationRepository.existsByUserIdAndEventIdAndStatus(userId, eventId, ReservationStatus.PENDING)).thenReturn(false);
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
         when(ticketSalePhaseRepository.findById(salePhaseId)).thenReturn(Optional.of(samplePhase));
@@ -347,6 +397,7 @@ class ReservationServiceTest {
         ReservationItem item = new ReservationItem(resId, ticketTypeId, salePhaseId, seatId, 1, BigDecimal.valueOf(500000));
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED)).thenReturn(1);
         when(reservationItemRepository.findByReservationId(resId)).thenReturn(List.of(item));
 
@@ -365,6 +416,7 @@ class ReservationServiceTest {
         UUID resId = sampleReservation.getId();
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(sampleReservation));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
         when(reservationRepository.updateStatusAtomic(resId, ReservationStatus.PENDING, ReservationStatus.CONFIRMED)).thenReturn(0);
 
         boolean result = reservationService.confirmReservation(resId);

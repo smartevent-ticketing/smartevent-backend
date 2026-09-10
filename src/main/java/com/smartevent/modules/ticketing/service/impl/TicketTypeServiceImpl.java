@@ -1,33 +1,34 @@
 package com.smartevent.modules.ticketing.service.impl;
 
-import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.ticketing.dto.request.TicketTypeRequest;
 import com.smartevent.modules.ticketing.dto.response.TicketTypeResponse;
 import com.smartevent.modules.ticketing.entity.TicketType;
 import com.smartevent.modules.ticketing.exception.TicketingException;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.TicketTypeService;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TicketTypeServiceImpl implements TicketTypeService {
 
+    private final EventAccessPolicy eventAccessPolicy;
     private final EventRepository eventRepository;
     private final EventAreaRepository eventAreaRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    private final com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository salePhaseRepository;
 
     @Override
     @Transactional
@@ -132,6 +133,10 @@ public class TicketTypeServiceImpl implements TicketTypeService {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION, "Khu vực mới không thuộc sự kiện này");
         }
 
+        if (!ticketType.getEventAreaId().equals(request.eventAreaId()) && salePhaseRepository.existsByTicketTypeId(id)) {
+            throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "Loại vé đã có đợt bán không thể chuyển khu vực. Hãy xóa cấu hình đợt bán trước khi đổi khu vực");
+        }
         ticketType.setName(request.name());
         ticketType.setEventAreaId(request.eventAreaId());
         ticketType.setDescription(request.description());
@@ -158,14 +163,11 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         log.warn("Đã xóa loại vé: {} (ID: {})", ticketType.getName(), id);
     }
 
-
-
-
     private Event getEventAndVerifyAccess(UUID eventId, UUID currentUserId, boolean isAdmin) {
-        Event event = eventRepository.findById(eventId)
+        Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new TicketingException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
 
-        if (!isAdmin && !event.getOrganizerId().equals(currentUserId)) {
+        if (!eventAccessPolicy.canManage(event, currentUserId, isAdmin)) {
             throw new TicketingException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền quản lý loại vé của sự kiện này");
         }
 
@@ -173,7 +175,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     }
 
     private void validateEventStateForModification(Event event) {
-        if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.PENDING_APPROVAL) {
+        if (!eventAccessPolicy.canModifyConfiguration(event)) {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Chỉ có thể chỉnh sửa loại vé khi sự kiện ở trạng thái Nháp hoặc Chờ duyệt");
         }

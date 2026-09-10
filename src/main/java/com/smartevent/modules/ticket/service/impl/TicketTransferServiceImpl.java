@@ -29,8 +29,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TicketTransferServiceImpl implements TicketTransferService {
 
-    private final TicketRepository ticketRepository;
-    private final TicketQrTokenRepository qrTokenRepository;
+    private final TicketMutationGuard mutationGuard;
+    private final TicketCredentialService credentialService;
     private final TicketTransferRepository transferRepository;
     private final UserRepository userRepository;
 
@@ -39,8 +39,7 @@ public class TicketTransferServiceImpl implements TicketTransferService {
     public TicketTransferResponse transferTicket(UUID ticketId, UUID currentUserId, TransferTicketRequest request) {
         log.info("Yêu cầu chuyển nhượng vé ID {} từ User ID {} sang Email {}", ticketId, currentUserId, request.recipientEmail());
 
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new TicketException(ErrorCode.TICKET_NOT_FOUND, "Không tìm thấy vé"));
+        Ticket ticket = mutationGuard.lockUsableEventTicket(ticketId);
 
         // 1. Kiểm tra quyền sở hữu
         if (!ticket.getCurrentOwnerUserId().equals(currentUserId)) {
@@ -59,25 +58,14 @@ public class TicketTransferServiceImpl implements TicketTransferService {
         if (recipient.getId().equals(currentUserId)) {
             throw new TicketException(ErrorCode.BUSINESS_RULE_VIOLATION, "Không thể tự chuyển nhượng vé cho chính mình");
         }
-
-        // 4. Thu hồi toàn bộ mã QR Token cũ của người bán (REVOKED)
-        List<TicketQrToken> oldTokens = qrTokenRepository.findByTicketId(ticketId);
-        for (TicketQrToken oldToken : oldTokens) {
-            if (oldToken.isActive()) {
-                oldToken.setStatus("REVOKED");
-                oldToken.setRevokedAt(Instant.now());
-                qrTokenRepository.save(oldToken);
-            }
+        if (!recipient.isActive()) {
+            throw new TicketException(ErrorCode.ACCOUNT_DISABLED, "Tài khoản người nhận không còn hoạt động");
         }
 
-        // 5. Chuyển quyền sở hữu vé sang người nhận mới
+        // 4. Thu hồi toàn bộ mã QR Token cũ của người bán (REVOKED)
+        // Chuyển quyền và xoay cả QR lẫn mã nhập tay trong cùng transaction.
         ticket.setCurrentOwnerUserId(recipient.getId());
-        ticketRepository.save(ticket);
-
-        // 6. Sinh mã Token QR mới tinh cho người nhận
-        String newQrHash = TicketSecurityUtils.generateSecureQrToken(ticketId, recipient.getId());
-        TicketQrToken newQrToken = new TicketQrToken(ticketId, newQrHash);
-        qrTokenRepository.save(newQrToken);
+        credentialService.rotate(ticket);
 
         // 7. Lưu bản ghi lịch sử chuyển nhượng
         TicketTransfer transfer = new TicketTransfer(

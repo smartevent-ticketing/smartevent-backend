@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.smartevent.review.BackendBusinessReviewTest" tests="6" skipped="0" failures="6" errors="0" timestamp="2026-09-10T05:06:43.389Z" hostname="ANHHUYDEPTRAI" time="2.832">
+  <properties/>
+  <testcase name="detectingRefreshTokenReuseMustPersistRevocationDespiteRejectedRequest()" classname="com.smartevent.review.BackendBusinessReviewTest" time="1.817">
+    <failure message="org.mockito.exceptions.verification.NeverWantedButInvoked: &#10;platformTransactionManager.rollback(&#10;    org.springframework.transaction.support.SimpleTransactionStatus@188a5fc2&#10;);&#10;Never wanted here:&#10;-&gt; at com.smartevent.review.BackendBusinessReviewTest.detectingRefreshTokenReuseMustPersistRevocationDespiteRejectedRequest(BackendBusinessReviewTest.java:203)&#10;But invoked here:&#10;-&gt; at org.springframework.transaction.interceptor.TransactionAspectSupport.completeTransactionAfterThrowing(TransactionAspectSupport.java:708) with arguments: [org.springframework.transaction.support.SimpleTransactionStatus@188a5fc2]&#10;" type="org.mockito.exceptions.verification.NeverWantedButInvoked">org.mockito.exceptions.verification.NeverWantedButInvoked: 
+platformTransactionManager.rollback(
+    org.springframework.transaction.support.SimpleTransactionStatus@188a5fc2
+);
+Never wanted here:
+-&gt; at com.smartevent.review.BackendBusinessReviewTest.detectingRefreshTokenReuseMustPersistRevocationDespiteRejectedRequest(BackendBusinessReviewTest.java:203)
+But invoked here:
+-&gt; at org.springframework.transaction.interceptor.TransactionAspectSupport.completeTransactionAfterThrowing(TransactionAspectSupport.java:708) with arguments: [org.springframework.transaction.support.SimpleTransactionStatus@188a5fc2]
+
+	at com.smartevent.review.BackendBusinessReviewTest.detectingRefreshTokenReuseMustPersistRevocationDespiteRejectedRequest(BackendBusinessReviewTest.java:203)
+</failure>
+  </testcase>
+  <testcase name="gatewayLinkMustNotOutliveOrderPaymentDeadline()" classname="com.smartevent.review.BackendBusinessReviewTest" time="0.145">
+    <failure message="org.opentest4j.AssertionFailedError: Gateway must stop accepting payment when the reserved tickets expire ==&gt; expected: &lt;false&gt; but was: &lt;true&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: Gateway must stop accepting payment when the reserved tickets expire ==&gt; expected: &lt;false&gt; but was: &lt;true&gt;
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:158)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:139)
+	at org.junit.jupiter.api.AssertFalse.failNotFalse(AssertFalse.java:69)
+	at org.junit.jupiter.api.AssertFalse.assertFalse(AssertFalse.java:41)
+	at org.junit.jupiter.api.Assertions.assertFalse(Assertions.java:255)
+	at com.smartevent.review.BackendBusinessReviewTest.gatewayLinkMustNotOutliveOrderPaymentDeadline(BackendBusinessReviewTest.java:81)
+</failure>
+  </testcase>
+  <testcase name="unlimitedSalePhaseMustCompletePurchaseAfterSuccessfulHold()" classname="com.smartevent.review.BackendBusinessReviewTest" time="0.044">
+    <failure message="org.opentest4j.AssertionFailedError: A valid unlimited hold must not fail when the payment is confirmed ==&gt; Unexpected exception thrown: com.smartevent.modules.ticketing.exception.TicketingException: Không thể xác nhận mua vé do dữ liệu giữ vé không khớp" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: A valid unlimited hold must not fail when the payment is confirmed ==&gt; Unexpected exception thrown: com.smartevent.modules.ticketing.exception.TicketingException: Không thể xác nhận mua vé do dữ liệu giữ vé không khớp
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:159)
+	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:90)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:56)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:43)
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3314)
+	at com.smartevent.review.BackendBusinessReviewTest.unlimitedSalePhaseMustCompletePurchaseAfterSuccessfulHold(BackendBusinessReviewTest.java:96)
+Caused by: com.smartevent.modules.ticketing.exception.TicketingException: Không thể xác nhận mua vé do dữ liệu giữ vé không khớp
+	at com.smartevent.modules.ticketing.service.impl.UserSalePhaseCounterServiceImpl.confirmUserPurchase(UserSalePhaseCounterServiceImpl.java:88)
+	at com.smartevent.review.BackendBusinessReviewTest.lambda$unlimitedSalePhaseMustCompletePurchaseAfterSuccessfulHold$4(BackendBusinessReviewTest.java:96)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:52)
+	... 3 more
+</failure>
+  </testcase>
+  <testcase name="signedReturnWithWrongAmountMustNotCompleteOrder()" classname="com.smartevent.review.BackendBusinessReviewTest" time="0.357">
+    <failure message="org.mockito.exceptions.verification.NeverWantedButInvoked: &#10;paymentCompletionService.complete(&#10;    &lt;any&gt;,&#10;    &lt;any&gt;,&#10;    &lt;any&gt;&#10;);&#10;Never wanted here:&#10;-&gt; at com.smartevent.modules.payment.service.impl.PaymentCompletionService.complete(PaymentCompletionService.java:25)&#10;But invoked here:&#10;-&gt; at com.smartevent.modules.payment.service.impl.VNPayCallbackHandler.handleVNPayReturn(VNPayCallbackHandler.java:148) with arguments: [com.smartevent.modules.ordering.entity.Order@6903ed0e, com.smartevent.modules.payment.entity.Payment@e154848, 1234]&#10;" type="org.mockito.exceptions.verification.NeverWantedButInvoked">org.mockito.exceptions.verification.NeverWantedButInvoked: 
+paymentCompletionService.complete(
+    &lt;any&gt;,
+    &lt;any&gt;,
+    &lt;any&gt;
+);
+Never wanted here:
+-&gt; at com.smartevent.modules.payment.service.impl.PaymentCompletionService.complete(PaymentCompletionService.java:25)
+But invoked here:
+-&gt; at com.smartevent.modules.payment.service.impl.VNPayCallbackHandler.handleVNPayReturn(VNPayCallbackHandler.java:148) with arguments: [com.smartevent.modules.ordering.entity.Order@6903ed0e, com.smartevent.modules.payment.entity.Payment@e154848, 1234]
+
+	at com.smartevent.modules.payment.service.impl.PaymentCompletionService.complete(PaymentCompletionService.java:25)
+	at com.smartevent.review.BackendBusinessReviewTest.signedReturnWithWrongAmountMustNotCompleteOrder(BackendBusinessReviewTest.java:181)
+</failure>
+  </testcase>
+  <testcase name="cancelledEventMustRejectGateCheckin()" classname="com.smartevent.review.BackendBusinessReviewTest" time="0.254">
+    <failure message="org.opentest4j.AssertionFailedError: Cancelled events must not admit attendees ==&gt; expected: not equal but was: &lt;SUCCESS&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: Cancelled events must not admit attendees ==&gt; expected: not equal but was: &lt;SUCCESS&gt;
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:159)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:139)
+	at org.junit.jupiter.api.AssertNotEquals.failEqual(AssertNotEquals.java:282)
+	at org.junit.jupiter.api.AssertNotEquals.assertNotEquals(AssertNotEquals.java:267)
+	at org.junit.jupiter.api.Assertions.assertNotEquals(Assertions.java:2922)
+	at com.smartevent.review.BackendBusinessReviewTest.cancelledEventMustRejectGateCheckin(BackendBusinessReviewTest.java:159)
+</failure>
+  </testcase>
+  <testcase name="splittingItemsMustNotBypassFourTicketsPerOrder()" classname="com.smartevent.review.BackendBusinessReviewTest" time="0.197">
+    <failure message="org.opentest4j.AssertionFailedError: Two lines of 3 tickets exceed the phase limit of 4 per order ==&gt; Expected com.smartevent.modules.reservation.exception.ReservationException to be thrown, but nothing was thrown." type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: Two lines of 3 tickets exceed the phase limit of 4 per order ==&gt; Expected com.smartevent.modules.reservation.exception.ReservationException to be thrown, but nothing was thrown.
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:159)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:74)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:40)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3249)
+	at com.smartevent.review.BackendBusinessReviewTest.splittingItemsMustNotBypassFourTicketsPerOrder(BackendBusinessReviewTest.java:136)
+</failure>
+  </testcase>
+  <system-out><![CDATA[12:06:45.162 [Test worker] WARN com.smartevent.modules.identity.service.impl.AuthServiceImpl -- Phát hi?n Token Reuse Attack t? User ID: c42e6254-ca03-454a-bd1b-af21cf4eec87
+12:06:45.358 [Test worker] INFO com.smartevent.modules.payment.service.impl.VNPayGatewayProvider -- Kh?i t?o Pay URL VNPay thành công cho đơn hàng ORD-REVIEW: https://review.invalid/pay?vnp_Amount=50000000&vnp_Command=pay&vnp_CreateDate=20260910120645&vnp_CurrCode=VND&vnp_ExpireDate=20260910122145&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+don+hang+ORD-REVIEW&vnp_OrderType=other&vnp_ReturnUrl=https%3A%2F%2Freview.invalid%2Freturn&vnp_TmnCode=REVIEW&vnp_TxnRef=ORD-REVIEW&vnp_Version=2.1.0&vnp_SecureHash=cabcaf364dacbdcf3dfb0c1b81a2a6aedd8dabc8abd23d9a7a7a469ccc02a2dd1846ab870403940954a3c594fa4b56b9cefde3d642b7bcf0e9f1e21731757c50
+12:06:45.409 [Test worker] ERROR com.smartevent.modules.ticketing.service.impl.UserSalePhaseCounterServiceImpl -- L?i xác nh?n mua vé c?a user c1cc122c-2fa3-4186-913c-150dea1d63c3: không đ? held_quantity đ? chuy?n sang purchased
+12:06:45.768 [Test worker] INFO com.smartevent.modules.payment.service.impl.VNPayCallbackHandler -- Hoàn t?t thanh toán và xu?t vé cho đơn hàng ORD-REVIEW t? VNPay Return
+12:06:46.010 [Test worker] INFO com.smartevent.modules.ticket.service.impl.CheckinServiceImpl -- Nhân viên ID cd8e539e-8eef-4e72-95c8-d9a4638f8166 đang quét m? vé: [TCK-REVIEW-123] t?i c?ng [Gate]
+12:06:46.014 [Test worker] INFO com.smartevent.modules.ticket.service.impl.CheckinServiceImpl -- Check-in THÀNH CÔNG cho khán gi? Khách hàng (Vé: TCK-REVIEW-123) t?i Gate
+12:06:46.219 [Test worker] INFO com.smartevent.modules.reservation.service.impl.ReservationServiceImpl -- T?o phiên gi? vé thành công: ID d2b0a5c1-09e9-4708-ba09-bf8f38bbf011, User 2cb2a171-c878-4f5e-b67c-905b2bacce82, T?ng ti?n 60
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8080
 
 spring:
@@ -75,6 +75,7 @@ management:
       enabled: false
 
 app:
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
   payment:
     vnpay:
       tmn-code: ${VNPAY_TMN_CODE:DEMOVNPAY}
@@ -113,3 +114,4 @@ app:
   date:
     default-format: "yyyy-MM-dd HH:mm:ss"
     timezone: "Asia/Ho_Chi_Minh"
+

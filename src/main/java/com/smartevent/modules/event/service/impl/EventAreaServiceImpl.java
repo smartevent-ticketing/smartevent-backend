@@ -1,6 +1,5 @@
 package com.smartevent.modules.event.service.impl;
 
-import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.EventAreaRequest;
 import com.smartevent.modules.event.dto.response.EventAreaResponse;
@@ -12,24 +11,26 @@ import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
 import com.smartevent.modules.event.repository.VenueRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.event.service.EventAreaService;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EventAreaServiceImpl implements EventAreaService {
 
+    private final EventAccessPolicy eventAccessPolicy;
     private final EventRepository eventRepository;
     private final VenueRepository venueRepository;
     private final EventAreaRepository eventAreaRepository;
     private final EventSeatRepository eventSeatRepository;
+    private final com.smartevent.modules.event.service.EventConfigurationPolicy configurationPolicy;
 
     @Override
     @Transactional
@@ -105,6 +106,7 @@ public class EventAreaServiceImpl implements EventAreaService {
         }
 
         validateVenueCapacity(event, request.capacity(), areaId);
+        configurationPolicy.validateAreaChange(area, request.capacity(), request.areaType());
 
         // Nếu khu vực đang có ghế và sức chứa mới nhỏ hơn số ghế hiện có
         long currentSeats = eventSeatRepository.countByEventAreaId(areaId);
@@ -139,10 +141,10 @@ public class EventAreaServiceImpl implements EventAreaService {
     }
 
     private Event getEventAndVerifyAccess(UUID eventId, UUID currentUserId, boolean isAdmin) {
-        Event event = eventRepository.findById(eventId)
+        Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
 
-        if (!isAdmin && !event.getOrganizerId().equals(currentUserId)) {
+        if (!eventAccessPolicy.canManage(event, currentUserId, isAdmin)) {
             throw new EventException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền quản lý khu vực của sự kiện này");
         }
 
@@ -150,7 +152,7 @@ public class EventAreaServiceImpl implements EventAreaService {
     }
 
     private void validateEventStateForModification(Event event) {
-        if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.PENDING_APPROVAL) {
+        if (!eventAccessPolicy.canModifyConfiguration(event)) {
             throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Chỉ có thể chỉnh sửa khu vực khi sự kiện ở trạng thái Nháp hoặc Chờ duyệt");
         }
@@ -171,4 +173,3 @@ public class EventAreaServiceImpl implements EventAreaService {
         }
     }
 }
-

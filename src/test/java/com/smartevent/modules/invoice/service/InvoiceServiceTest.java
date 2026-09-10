@@ -5,6 +5,7 @@ import com.smartevent.common.enums.InvoiceStatus;
 import com.smartevent.common.enums.OrderStatus;
 import com.smartevent.common.enums.PaymentMethod;
 import com.smartevent.common.error.ErrorCode;
+import com.smartevent.infrastructure.mail.EmailService;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
 import com.smartevent.modules.identity.entity.User;
@@ -18,26 +19,26 @@ import com.smartevent.modules.invoice.exception.InvoiceException;
 import com.smartevent.modules.invoice.repository.InvoiceDeliveryRepository;
 import com.smartevent.modules.invoice.repository.InvoiceItemRepository;
 import com.smartevent.modules.invoice.repository.InvoiceRepository;
+import com.smartevent.modules.invoice.service.impl.InvoiceIssuanceService;
 import com.smartevent.modules.invoice.service.impl.InvoiceServiceImpl;
+import com.smartevent.modules.invoice.support.PdfInvoiceGenerator;
 import com.smartevent.modules.ordering.entity.Order;
 import com.smartevent.modules.ordering.entity.OrderItem;
 import com.smartevent.modules.ordering.repository.OrderItemRepository;
 import com.smartevent.modules.ordering.repository.OrderRepository;
+import com.smartevent.modules.outbox.service.OutboxService;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -54,11 +55,44 @@ class InvoiceServiceTest {
     @Mock private TicketTypeRepository ticketTypeRepository;
     @Mock private EventRepository eventRepository;
     @Mock private EventSeatRepository eventSeatRepository;
-    @Mock private com.smartevent.modules.invoice.support.PdfInvoiceGenerator pdfInvoiceGenerator;
-    @Mock private com.smartevent.modules.outbox.service.OutboxService outboxService;
+    @Mock private PdfInvoiceGenerator pdfInvoiceGenerator;
+    @Mock private OutboxService outboxService;
 
-    @InjectMocks
+    @Mock private EmailService emailService;
+
     private InvoiceServiceImpl invoiceService;
+
+    @BeforeEach
+    void composeServices() {
+        invoiceService = new InvoiceServiceImpl(
+                invoiceRepository,
+                invoiceItemRepository,
+                new InvoiceIssuanceService(
+                        invoiceRepository,
+                        invoiceItemRepository,
+                        orderRepository,
+                        orderItemRepository,
+                        userRepository,
+                        ticketTypeRepository,
+                        eventRepository,
+                        eventSeatRepository,
+                        new InvoiceDeliveryService(
+                                invoiceRepository,
+                                invoiceDeliveryRepository,
+                                new InvoiceDocumentService(
+                                        invoiceItemRepository,
+                                        userRepository,
+                                        pdfInvoiceGenerator),
+                                emailService,
+                                outboxService)),
+                new InvoiceDeliveryService(
+                        invoiceRepository,
+                        invoiceDeliveryRepository,
+                        new InvoiceDocumentService(invoiceItemRepository, userRepository, pdfInvoiceGenerator),
+                        emailService,
+                        outboxService),
+                new InvoiceDocumentService(invoiceItemRepository, userRepository, pdfInvoiceGenerator));
+    }
 
     private UUID userId;
     private UUID orderId;
@@ -85,7 +119,14 @@ class InvoiceServiceTest {
         paidOrder.setId(orderId);
         paidOrder.setStatus(OrderStatus.PAID);
 
-        item1 = new OrderItem(orderId, UUID.randomUUID(), UUID.randomUUID(), null, 2, BigDecimal.valueOf(500000), BigDecimal.valueOf(1000000));
+        item1 = new OrderItem(
+                orderId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                2,
+                BigDecimal.valueOf(500000),
+                BigDecimal.valueOf(1000000));
         item1.setId(UUID.randomUUID());
     }
 

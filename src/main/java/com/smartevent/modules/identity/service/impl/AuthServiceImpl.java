@@ -16,6 +16,7 @@ import com.smartevent.modules.identity.entity.RefreshToken;
 import com.smartevent.modules.identity.entity.Role;
 import com.smartevent.modules.identity.entity.User;
 import com.smartevent.modules.identity.exception.AuthException;
+import com.smartevent.modules.identity.exception.TokenReuseException;
 import com.smartevent.modules.identity.repository.RefreshTokenRepository;
 import com.smartevent.modules.identity.repository.RoleRepository;
 import com.smartevent.modules.identity.repository.UserRepository;
@@ -116,12 +117,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = TokenReuseException.class)
     public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
 
         String tokenHash = jwtTokenProvider.hashToken(request.refreshToken());
 
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashWithUser(tokenHash)
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new AuthException(
                         ErrorCode.INVALID_CREDENTIALS,
                         "Phiên đăng nhập không hợp"
@@ -133,10 +134,7 @@ public class AuthServiceImpl implements AuthService {
         if (refreshToken.isRevoked()) {
             log.warn("Phát hiện Token Reuse Attack từ User ID: {}", user.getId());
             refreshTokenRepository.revokeAllUserTokens(user.getId(), Instant.now());
-            throw new BusinessException(
-                    ErrorCode.INVALID_CREDENTIALS,
-                    "Phiên đăng nhập đã bị thu hồi hoặc được sử dụng trước đó"
-            );
+            throw new TokenReuseException();
         }
 
         // 2. Kiểm tra hết hạn

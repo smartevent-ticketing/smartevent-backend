@@ -12,7 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,12 +32,17 @@ public class VNPayGatewayProvider implements PaymentGatewayProvider {
 
     @Override
     public String createPaymentUrl(Payment payment, Order order, HttpServletRequest request, String bankCode) {
-        long amountInCents = payment.getAmount().multiply(BigDecimal.valueOf(100)).longValue();
+        long amountInCents = payment.getAmount().multiply(BigDecimal.valueOf(100)).longValueExact();
 
-        LocalDateTime now = LocalDateTime.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-        String createDate = now.format(formatter);
-        String expireDate = now.plusMinutes(15).format(formatter);
+        Instant now = Instant.now();
+        if (order.getPaymentDeadline() == null || !order.getPaymentDeadline().isAfter(now)) {
+            throw new com.smartevent.modules.payment.exception.PaymentException(
+                    com.smartevent.common.error.ErrorCode.ORDER_EXPIRED, "Đơn hàng đã hết hạn thanh toán");
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+                .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
+        String createDate = formatter.format(now);
+        String expireDate = formatter.format(order.getPaymentDeadline());
 
         Map<String, String> vnpParams = new HashMap<>();
         vnpParams.put("vnp_Version", vnpayProperties.getVersion());
@@ -60,7 +66,7 @@ public class VNPayGatewayProvider implements PaymentGatewayProvider {
         String queryString = VNPayUtils.buildQueryUrl(vnpParams, vnpayProperties.getHashSecret());
         String paymentUrl = vnpayProperties.getPayUrl() + "?" + queryString;
 
-        log.info("Khởi tạo Pay URL VNPay thành công cho đơn hàng {}: {}", order.getOrderCode(), paymentUrl);
+        log.info("Khởi tạo Pay URL VNPay thành công cho đơn hàng {}", order.getOrderCode());
         return paymentUrl;
     }
 }

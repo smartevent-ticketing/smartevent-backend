@@ -11,14 +11,17 @@ import com.smartevent.modules.payment.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +33,9 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+
+    @Value("${app.frontend-url:http://localhost:3000}")
+    private String frontendUrl;
 
     @PostMapping("/create-url")
     @PreAuthorize("isAuthenticated()")
@@ -51,11 +57,17 @@ public class PaymentController {
     }
 
     @GetMapping("/vnpay/return")
-    @Operation(summary = "Return URL tiếp nhận khách hàng quay lại sau khi thanh toán trên VNPay (Hiển thị UI)")
-    public ResponseEntity<ApiResponse<VNPayReturnResponse>> vnpayReturn(@RequestParam Map<String, String> params) {
+    @Operation(summary = "Return URL tiếp nhận khách hàng quay lại sau khi thanh toán trên VNPay (Chuyển hướng về Frontend UI)")
+    public void vnpayReturn(
+            @RequestParam Map<String, String> params,
+            HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
         log.info("Khách hàng quay lại từ cổng VNPay Return: {}", params);
-        VNPayReturnResponse response = paymentService.handleVNPayReturn(params);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        paymentService.handleVNPayReturn(params);
+
+        String queryString = request.getQueryString();
+        String redirectTarget = frontendUrl + "/payment/vnpay-return" + (queryString != null ? "?" + queryString : "");
+        response.sendRedirect(redirectTarget);
     }
 
     @GetMapping("/{id}")

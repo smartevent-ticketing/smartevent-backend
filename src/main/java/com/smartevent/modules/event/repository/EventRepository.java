@@ -16,6 +16,14 @@ import java.util.UUID;
 @Repository
 public interface EventRepository extends JpaRepository<Event, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_READ)
+    @Query("select e from Event e where e.id = :id")
+    Optional<Event> findByIdForShare(@Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select e from Event e where e.id = :id")
+    Optional<Event> findByIdForUpdate(@Param("id") UUID id);
+
     Optional<Event> findBySlug(String slug);
 
     boolean existsBySlug(String slug);

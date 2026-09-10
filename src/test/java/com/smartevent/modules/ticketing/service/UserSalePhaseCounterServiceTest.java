@@ -77,12 +77,12 @@ class UserSalePhaseCounterServiceTest {
     }
 
     @Test
-    @DisplayName("Bỏ qua kiểm tra hạn mức nếu đợt bán không giới hạn (maxPerUser == null)")
-    void holdUserTickets_WhenMaxPerUserNull_SkipsCheck() {
+    @DisplayName("Đợt bán không giới hạn vẫn ghi nhận giữ vé để xác nhận thanh toán")
+    void holdUserTickets_WhenMaxPerUserNull_RecordsHold() {
+        when(userSalePhaseCounterRepository.atomicHoldUserQuantity(eq(userId), eq(salePhaseId), eq(2), eq(Integer.MAX_VALUE), any())).thenReturn(1);
         assertDoesNotThrow(() -> userSalePhaseCounterService.holdUserTickets(userId, salePhaseId, 2, null));
-
-        verify(userSalePhaseCounterRepository, never()).upsertUserCounter(any(), any());
-        verify(userSalePhaseCounterRepository, never()).atomicHoldUserQuantity(any(), any(), anyInt(), anyInt(), any());
+        verify(userSalePhaseCounterRepository).upsertUserCounter(userId, salePhaseId);
+        verify(userSalePhaseCounterRepository).atomicHoldUserQuantity(eq(userId), eq(salePhaseId), eq(2), eq(Integer.MAX_VALUE), any());
     }
 
     @Test

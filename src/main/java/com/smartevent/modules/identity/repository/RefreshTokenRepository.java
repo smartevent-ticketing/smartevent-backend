@@ -14,6 +14,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM RefreshToken r WHERE r.tokenHash = :tokenHash")
+    Optional<RefreshToken> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
+
     @Query("SELECT r FROM RefreshToken r JOIN FETCH r.user u LEFT JOIN FETCH u.userRoles ur LEFT JOIN FETCH ur.role WHERE r.tokenHash = :tokenHash")
     Optional<RefreshToken> findByTokenHashWithUser(@Param("tokenHash") String tokenHash);
 

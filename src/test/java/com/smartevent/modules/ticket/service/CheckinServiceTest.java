@@ -63,13 +63,20 @@ class CheckinServiceTest {
         validTicket.setId(ticketId);
     }
 
+    private com.smartevent.modules.event.entity.Event publishedEvent() {
+        var event = new com.smartevent.modules.event.entity.Event();
+        event.setStatus(com.smartevent.common.enums.EventStatus.PUBLISHED);
+        return event;
+    }
+
     @Test
     @DisplayName("Quét vé lần đầu thành công -> Kết quả SUCCESS và đổi trạng thái vé sang USED bằng Atomic Update")
     void checkin_Success() {
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", eventId, "Cổng VIP 1");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
-        when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(publishedEvent()));
+        when(ticketRepository.findIdByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(ticketId));
+        when(ticketRepository.findByIdForUpdate(ticketId)).thenReturn(Optional.of(validTicket));
         when(ticketRepository.markTicketAsUsedAtomic(eq(ticketId), any())).thenReturn(1);
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> {
             TicketCheckin tc = i.getArgument(0);
@@ -93,8 +100,9 @@ class CheckinServiceTest {
 
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", eventId, "Cổng A2");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
-        when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(publishedEvent()));
+        when(ticketRepository.findIdByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(ticketId));
+        when(ticketRepository.findByIdForUpdate(ticketId)).thenReturn(Optional.of(validTicket));
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> i.getArgument(0));
 
         CheckinResponse response = checkinService.processCheckin(request, staffId);
@@ -111,8 +119,9 @@ class CheckinServiceTest {
         UUID otherEventId = UUID.randomUUID();
         CheckinRequest request = new CheckinRequest("TCK-20260822-ABC12345", otherEventId, "Cổng A1");
 
-        when(eventRepository.findById(otherEventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
-        when(ticketRepository.findByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(validTicket));
+        when(eventRepository.findByIdForShare(otherEventId)).thenReturn(Optional.of(publishedEvent()));
+        when(ticketRepository.findIdByTicketCode("TCK-20260822-ABC12345")).thenReturn(Optional.of(ticketId));
+        when(ticketRepository.findByIdForUpdate(ticketId)).thenReturn(Optional.of(validTicket));
         when(checkinRepository.save(any(TicketCheckin.class))).thenAnswer(i -> i.getArgument(0));
 
         CheckinResponse response = checkinService.processCheckin(request, staffId);
@@ -131,7 +140,9 @@ class CheckinServiceTest {
 
         CheckinRequest request = new CheckinRequest(tokenHash, eventId, "Cổng A1");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(mock(com.smartevent.modules.event.entity.Event.class)));
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(publishedEvent()));
+        when(qrTokenRepository.findTicketIdByTokenHash(tokenHash)).thenReturn(Optional.of(ticketId));
+        when(ticketRepository.findByIdForUpdate(ticketId)).thenReturn(Optional.of(validTicket));
         when(qrTokenRepository.findByTokenHash(tokenHash)).thenReturn(Optional.of(revokedToken));
 
         CheckinResponse response = checkinService.processCheckin(request, staffId);

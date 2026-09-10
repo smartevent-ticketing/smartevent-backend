@@ -46,35 +46,36 @@ public class CheckinServiceImpl implements CheckinService {
     public CheckinResponse processCheckin(CheckinRequest request, UUID staffUserId) {
         String input = request.ticketCodeOrToken().trim();
         String gate = request.gateName() != null ? request.gateName() : "Cổng chính";
-        log.info("Nhân viên ID {} đang quét mã vé: [{}] tại cổng [{}]", staffUserId, input, gate);
+        log.info("Nhân viên ID {} soát vé tại cổng [{}]", staffUserId, gate);
 
         // 0. Kiểm tra sự tồn tại của Event
-        var event = eventRepository.findById(request.eventId())
+        var event = eventRepository.findByIdForShare(request.eventId())
                 .orElseThrow(() -> new com.smartevent.modules.ticket.exception.TicketException(
                         com.smartevent.common.error.ErrorCode.EVENT_NOT_FOUND, "Không tìm thấy sự kiện"));
-
-        // 1. Phân giải: Input có thể là mã vé cố định (TCK-...) hoặc chuỗi QR Token Hash
-        Optional<Ticket> ticketOpt = Optional.empty();
-
-        if (input.startsWith("TCK-QR.")) {
-            // Quét từ mã QR động
-            Optional<TicketQrToken> tokenOpt = qrTokenRepository.findByTokenHash(input);
-            if (tokenOpt.isEmpty() || !"ACTIVE".equalsIgnoreCase(tokenOpt.get().getStatus())) {
-                log.warn("Mã QR Token không tồn tại hoặc đã bị thu hồi (REVOKED): {}", input);
-                return CheckinResponse.invalid("MÃ QR NÀY ĐÃ BỊ THU HỒI HOẶC KHÔNG HỢP LỆ!", gate);
-            }
-            ticketOpt = ticketRepository.findById(tokenOpt.get().getTicketId());
-        } else {
-            // Quét hoặc gõ từ mã vé cố định (TCK-20260822-XXXX)
-            ticketOpt = ticketRepository.findByTicketCode(input);
+        if (event.getStatus() != com.smartevent.common.enums.EventStatus.PUBLISHED) {
+            return CheckinResponse.invalid("SỰ KIỆN KHÔNG CÒN CHO PHÉP CHECK-IN!", gate);
         }
 
+        // 1. Phân giải: Input có thể là mã vé cố định (TCK-...) hoặc chuỗi QR Token Hash
+        boolean qrInput = input.startsWith("TCK-QR.");
+        Optional<UUID> ticketId = qrInput ? qrTokenRepository.findTicketIdByTokenHash(input)
+                : ticketRepository.findIdByTicketCode(input);
+        Optional<Ticket> ticketOpt = ticketId.flatMap(ticketRepository::findByIdForUpdate);
+
         if (ticketOpt.isEmpty()) {
-            log.warn("Không tìm thấy tấm vé tương ứng với input: {}", input);
             return CheckinResponse.invalid("MÃ VÉ KHÔNG TỒN TẠI TRÊN HỆ THỐNG!", gate);
         }
 
         Ticket ticket = ticketOpt.get();
+        // Resolve credentials again under the ticket lock; a transfer may have just invalidated them.
+        if (qrInput) {
+            if (qrTokenRepository.findByTokenHash(input)
+                    .filter(token -> token.isActive() && token.getTicketId().equals(ticket.getId())).isEmpty()) {
+                return CheckinResponse.invalid("MÃ QR NÀY ĐÃ BỊ THU HỒI HOẶC KHÔNG HỢP LỆ!", gate);
+            }
+        } else if (!input.equals(ticket.getTicketCode())) {
+            return CheckinResponse.invalid("MÃ VÉ ĐÃ ĐƯỢC THAY ĐỔI, VUI LÒNG DÙNG MÃ MỚI!", gate);
+        }
 
         // 2. Kiểm tra đối soát Event ID
         if (!ticket.getEventId().equals(request.eventId())) {

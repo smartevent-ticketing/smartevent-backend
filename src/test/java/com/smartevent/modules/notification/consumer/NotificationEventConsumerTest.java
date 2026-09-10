@@ -10,25 +10,26 @@ import com.smartevent.modules.invoice.entity.InvoiceDelivery;
 import com.smartevent.modules.invoice.repository.InvoiceDeliveryRepository;
 import com.smartevent.modules.invoice.repository.InvoiceItemRepository;
 import com.smartevent.modules.invoice.repository.InvoiceRepository;
+import com.smartevent.modules.invoice.service.InvoiceDeliveryService;
+import com.smartevent.modules.invoice.service.InvoiceDocumentService;
 import com.smartevent.modules.invoice.support.PdfInvoiceGenerator;
+import com.smartevent.modules.outbox.service.OutboxService;
 import com.smartevent.modules.ticket.dto.event.TicketIssuedEvent;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.ObjectMapper;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationEventConsumerTest {
@@ -41,8 +42,22 @@ class NotificationEventConsumerTest {
     @Mock private UserRepository userRepository;
     @Mock private PdfInvoiceGenerator pdfInvoiceGenerator;
 
-    @InjectMocks
+    @Mock private OutboxService outboxService;
+
     private NotificationEventConsumer consumer;
+
+    @BeforeEach
+    void composeServices() {
+        consumer = new NotificationEventConsumer(
+                emailService,
+                objectMapper,
+                new InvoiceDeliveryService(
+                        invoiceRepository,
+                        invoiceDeliveryRepository,
+                        new InvoiceDocumentService(invoiceItemRepository, userRepository, pdfInvoiceGenerator),
+                        emailService,
+                        outboxService));
+    }
 
     @Test
     @DisplayName("Xử lý TicketIssuedEvent thành công: Gửi email vé và QR")
@@ -80,6 +95,7 @@ class NotificationEventConsumerTest {
         Invoice invoice = new Invoice();
         invoice.setId(invoiceId);
         invoice.setUserId(userId);
+        invoice.setBillingEmail("buyer@gmail.com");
 
         User user = new User();
         user.setFullName("Nguyen Van A");
@@ -122,6 +138,7 @@ class NotificationEventConsumerTest {
         Invoice invoice = new Invoice();
         invoice.setId(invoiceId);
         invoice.setUserId(userId);
+        invoice.setBillingEmail("buyer@gmail.com");
 
         InvoiceDelivery delivery = new InvoiceDelivery(invoiceId, "buyer@gmail.com");
         delivery.setStatus(DeliveryStatus.PENDING);

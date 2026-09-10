@@ -1,6 +1,5 @@
 package com.smartevent.modules.event.service;
 
-import com.smartevent.common.api.PageResponse;
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.enums.SeatStatus;
@@ -16,21 +15,15 @@ import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
 import com.smartevent.modules.event.service.impl.EventSeatServiceImpl;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -48,8 +41,12 @@ class EventSeatServiceTest {
     @Mock
     private EventSeatRepository eventSeatRepository;
 
-    @InjectMocks
     private EventSeatServiceImpl eventSeatService;
+
+    @BeforeEach
+    void composeServices() {
+        eventSeatService = new EventSeatServiceImpl(new EventAccessPolicy(), eventRepository, eventAreaRepository, eventSeatRepository);
+    }
 
     @Test
     @DisplayName("Sinh ghế tự động (Batch Generator) thành công cho khu vực SEATED")
@@ -70,7 +67,7 @@ class EventSeatServiceTest {
         GenerateSeatsRequest request = new GenerateSeatsRequest("A", "C", 5);
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventSeatRepository.countByEventAreaId(areaId)).thenReturn(0L);
 
         when(eventSeatRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -105,7 +102,7 @@ class EventSeatServiceTest {
         GenerateSeatsRequest request = new GenerateSeatsRequest("A", "C", 10);
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(standingArea));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventSeatService.generateSeats(areaId, organizerId, false, request)
@@ -133,7 +130,7 @@ class EventSeatServiceTest {
         GenerateSeatsRequest request = new GenerateSeatsRequest("Z", "A", 10); // Sai thứ tự
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventSeatService.generateSeats(areaId, organizerId, false, request)
@@ -161,7 +158,7 @@ class EventSeatServiceTest {
         GenerateSeatsRequest request = new GenerateSeatsRequest("A", "F", 10);
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventSeatRepository.countByEventAreaId(areaId)).thenReturn(0L);
 
         EventException exception = assertThrows(EventException.class, () ->
@@ -190,7 +187,7 @@ class EventSeatServiceTest {
         EventSeatRequest request = new EventSeatRequest("VIP", "01", "VIP-01");
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventSeatRepository.existsByEventAreaIdAndRowNameAndSeatNumber(areaId, "VIP", "01")).thenReturn(false);
         when(eventSeatRepository.countByEventAreaId(areaId)).thenReturn(10L);
 
@@ -230,7 +227,7 @@ class EventSeatServiceTest {
 
         when(eventSeatRepository.findById(seatId)).thenReturn(Optional.of(seat));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
 
         EventException exception = assertThrows(EventException.class, () ->
                 eventSeatService.deleteSeat(seatId, organizerId, false)
@@ -257,7 +254,7 @@ class EventSeatServiceTest {
         event.setStatus(EventStatus.DRAFT);
 
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(area));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventSeatRepository.countByEventAreaIdAndStatus(areaId, SeatStatus.SOLD)).thenReturn(0L);
         when(eventSeatRepository.countByEventAreaIdAndStatus(areaId, SeatStatus.HELD)).thenReturn(0L);
 
@@ -266,4 +263,3 @@ class EventSeatServiceTest {
         verify(eventSeatRepository, times(1)).deleteByEventAreaId(areaId);
     }
 }
-

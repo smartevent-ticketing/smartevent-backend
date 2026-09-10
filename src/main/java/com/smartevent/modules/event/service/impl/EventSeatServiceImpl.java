@@ -2,7 +2,6 @@ package com.smartevent.modules.event.service.impl;
 
 import com.smartevent.common.api.PageResponse;
 import com.smartevent.common.enums.AreaType;
-import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.enums.SeatStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.EventSeatRequest;
@@ -15,7 +14,11 @@ import com.smartevent.modules.event.exception.EventException;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.event.service.EventSeatService;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,15 +26,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EventSeatServiceImpl implements EventSeatService {
 
+    private final EventAccessPolicy eventAccessPolicy;
     private final EventRepository eventRepository;
     private final EventAreaRepository eventAreaRepository;
     private final EventSeatRepository eventSeatRepository;
@@ -178,14 +178,14 @@ public class EventSeatServiceImpl implements EventSeatService {
         EventArea area = eventAreaRepository.findById(areaId)
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khu vực"));
 
-        Event event = eventRepository.findById(area.getEventId())
+        Event event = eventRepository.findByIdForUpdate(area.getEventId())
                 .orElseThrow(() -> new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
 
-        if (!isAdmin && !event.getOrganizerId().equals(currentUserId)) {
+        if (!eventAccessPolicy.canManage(event, currentUserId, isAdmin)) {
             throw new EventException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền quản lý ghế của sự kiện này");
         }
 
-        if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.PENDING_APPROVAL) {
+        if (!eventAccessPolicy.canModifyConfiguration(event)) {
             throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Chỉ có thể chỉnh sửa sơ đồ ghế khi sự kiện ở trạng thái Nháp hoặc Chờ duyệt");
         }
@@ -193,4 +193,3 @@ public class EventSeatServiceImpl implements EventSeatService {
         return area;
     }
 }
-

@@ -7,24 +7,22 @@ import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.ticketing.dto.request.TicketTypeRequest;
 import com.smartevent.modules.ticketing.dto.response.TicketTypeResponse;
 import com.smartevent.modules.ticketing.entity.TicketType;
 import com.smartevent.modules.ticketing.exception.TicketingException;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.impl.TicketTypeServiceImpl;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -41,8 +39,12 @@ class TicketTypeServiceTest {
     @Mock
     private TicketTypeRepository ticketTypeRepository;
 
-    @InjectMocks
     private TicketTypeServiceImpl ticketTypeService;
+
+    @BeforeEach
+    void composeServices() {
+        ticketTypeService = new TicketTypeServiceImpl(new EventAccessPolicy(), eventRepository, eventAreaRepository, ticketTypeRepository, mock(com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository.class));
+    }
 
     private UUID eventId;
     private UUID areaId;
@@ -76,7 +78,7 @@ class TicketTypeServiceTest {
     void createTicketType_Success() {
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả vé VIP", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
         when(ticketTypeRepository.existsByEventIdAndName(eventId, "Vé VIP")).thenReturn(false);
         when(ticketTypeRepository.save(any(TicketType.class))).thenReturn(sampleTicketType);
@@ -96,7 +98,7 @@ class TicketTypeServiceTest {
         UUID adminId = UUID.randomUUID();
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả vé VIP", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
         when(ticketTypeRepository.existsByEventIdAndName(eventId, "Vé VIP")).thenReturn(false);
         when(ticketTypeRepository.save(any(TicketType.class))).thenReturn(sampleTicketType);
@@ -113,7 +115,7 @@ class TicketTypeServiceTest {
     void createTicketType_EventNotFound_ThrowsException() {
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.empty());
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.empty());
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketTypeService.createTicketType(eventId, organizerId, false, request)
@@ -127,7 +129,7 @@ class TicketTypeServiceTest {
         UUID strangerUserId = UUID.randomUUID();
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketTypeService.createTicketType(eventId, strangerUserId, false, request)
@@ -141,7 +143,7 @@ class TicketTypeServiceTest {
         sampleEvent.setStatus(EventStatus.PUBLISHED);
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
                 ticketTypeService.createTicketType(eventId, organizerId, false, request)
@@ -154,7 +156,7 @@ class TicketTypeServiceTest {
     void createTicketType_AreaNotFound_ThrowsException() {
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.empty());
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
@@ -171,7 +173,7 @@ class TicketTypeServiceTest {
 
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(otherEventArea));
 
         TicketingException ex = assertThrows(TicketingException.class, () ->
@@ -185,7 +187,7 @@ class TicketTypeServiceTest {
     void createTicketType_DuplicateName_ThrowsException() {
         TicketTypeRequest request = new TicketTypeRequest(areaId, "Vé VIP", "Mô tả", "ACTIVE");
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
         when(ticketTypeRepository.existsByEventIdAndName(eventId, "Vé VIP")).thenReturn(true);
 
@@ -242,7 +244,7 @@ class TicketTypeServiceTest {
         TicketTypeRequest updateRequest = new TicketTypeRequest(areaId, "Vé VIP Hạng 1", "Mô tả mới", "ACTIVE");
 
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
         when(ticketTypeRepository.existsByEventIdAndName(eventId, "Vé VIP Hạng 1")).thenReturn(false);
         when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
         when(ticketTypeRepository.save(any(TicketType.class))).thenReturn(sampleTicketType);
@@ -257,7 +259,7 @@ class TicketTypeServiceTest {
     @DisplayName("Xóa loại vé thành công khi hợp lệ")
     void deleteTicketType_Success() {
         when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
 
         ticketTypeService.deleteTicketType(ticketTypeId, organizerId, false);
 

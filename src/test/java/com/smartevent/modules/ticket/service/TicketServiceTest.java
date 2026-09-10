@@ -1,37 +1,38 @@
 package com.smartevent.modules.ticket.service;
 
-
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.EventSeatRepository;
+import com.smartevent.modules.identity.repository.UserRepository;
 import com.smartevent.modules.ordering.entity.Order;
 import com.smartevent.modules.ordering.entity.OrderItem;
 import com.smartevent.modules.ordering.repository.OrderItemRepository;
 import com.smartevent.modules.ordering.repository.OrderRepository;
+import com.smartevent.modules.outbox.service.OutboxService;
 import com.smartevent.modules.ticket.dto.response.TicketResponse;
 import com.smartevent.modules.ticket.entity.Ticket;
 import com.smartevent.modules.ticket.entity.TicketQrToken;
 import com.smartevent.modules.ticket.exception.TicketException;
 import com.smartevent.modules.ticket.repository.TicketQrTokenRepository;
 import com.smartevent.modules.ticket.repository.TicketRepository;
+import com.smartevent.modules.ticket.service.impl.TicketIssuanceService;
+import com.smartevent.modules.ticket.service.impl.TicketQrService;
+import com.smartevent.modules.ticket.service.impl.TicketQueryService;
 import com.smartevent.modules.ticket.service.impl.TicketServiceImpl;
 import com.smartevent.modules.ticketing.entity.TicketType;
 import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -48,11 +49,20 @@ class TicketServiceTest {
     @Mock private EventSeatRepository eventSeatRepository;
     @Mock private TicketTypeRepository ticketTypeRepository;
     @Mock private TicketSalePhaseRepository salePhaseRepository;
-    @Mock private com.smartevent.modules.identity.repository.UserRepository userRepository;
-    @Mock private com.smartevent.modules.outbox.service.OutboxService outboxService;
+    @Mock private UserRepository userRepository;
+    @Mock private OutboxService outboxService;
 
-    @InjectMocks
     private TicketServiceImpl ticketService;
+
+    @BeforeEach
+    void composeServices() {
+        var query = new TicketQueryService(qrTokenRepository, eventRepository, eventAreaRepository,
+                eventSeatRepository, ticketTypeRepository, salePhaseRepository);
+        var issuance = new TicketIssuanceService(query, ticketRepository, qrTokenRepository, orderRepository,
+                orderItemRepository, eventRepository, eventSeatRepository, ticketTypeRepository, userRepository, outboxService);
+        var qr = new TicketQrService(new com.smartevent.modules.ticket.service.impl.TicketMutationGuard(ticketRepository, eventRepository), new com.smartevent.modules.ticket.service.impl.TicketCredentialService(ticketRepository, qrTokenRepository), query);
+        ticketService = new TicketServiceImpl(query, issuance, qr, ticketRepository, eventRepository);
+    }
 
     private UUID userId;
     private UUID orderId;
@@ -144,14 +154,17 @@ class TicketServiceTest {
 
         TicketQrToken oldToken = new TicketQrToken(ticketId, "OLD-HASH");
 
-        when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
-        when(qrTokenRepository.findByTicketId(ticketId)).thenReturn(List.of(oldToken));
+        when(ticketRepository.findEventIdById(ticketId)).thenReturn(Optional.of(eventId));
+        var event = new com.smartevent.modules.event.entity.Event();
+        event.setStatus(com.smartevent.common.enums.EventStatus.PUBLISHED);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(event));
+        when(ticketRepository.findByIdForUpdate(ticketId)).thenReturn(Optional.of(ticket));
 
         TicketResponse response = ticketService.refreshTicketQr(ticketId, userId);
 
         assertNotNull(response);
-        assertEquals("REVOKED", oldToken.getStatus());
-        verify(qrTokenRepository, times(1)).save(oldToken);
+        assertNotEquals("TCK-20260822-12345678", ticket.getTicketCode());
+        verify(qrTokenRepository).revokeActiveTokens(eq(ticketId), any());
         verify(qrTokenRepository, times(1)).save(argThat(TicketQrToken::isActive));
     }
 }

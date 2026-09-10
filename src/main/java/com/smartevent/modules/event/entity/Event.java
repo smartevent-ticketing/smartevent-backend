@@ -19,6 +19,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "events")
 public class Event extends BaseEntity {
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
 
     @Column(name = "organizer_id", nullable = false)
     private UUID organizerId;

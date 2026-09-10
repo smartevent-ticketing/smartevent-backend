@@ -1,12 +1,12 @@
 package com.smartevent.modules.ticketing.service.impl;
 
-import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.enums.SalePhaseStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
 import com.smartevent.modules.event.repository.EventAreaRepository;
 import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.service.EventAccessPolicy;
 import com.smartevent.modules.ticketing.dto.request.TicketPhaseRuleRequest;
 import com.smartevent.modules.ticketing.dto.request.TicketSalePhaseRequest;
 import com.smartevent.modules.ticketing.dto.response.TicketPhaseRuleResponse;
@@ -20,19 +20,19 @@ import com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository;
 import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.InventoryService;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
 
+    private final EventAccessPolicy eventAccessPolicy;
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
     private final EventAreaRepository eventAreaRepository;
@@ -277,24 +277,20 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         log.warn("Đã xóa quy tắc: {} (ID: {})", rule.getRuleType(), ruleId);
     }
 
-
-
-
     private Event getEventAndVerifyAccess(UUID eventId, UUID currentUserId, boolean isAdmin) {
-        Event event = eventRepository.findById(eventId)
+        Event event = eventRepository.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new TicketingException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
-        if (!isAdmin && !event.getOrganizerId().equals(currentUserId)) {
+        if (!eventAccessPolicy.canManage(event, currentUserId, isAdmin)) {
             throw new TicketingException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền quản lý đợt mở bán của sự kiện này");
         }
         return event;
     }
     private void validateEventStateForModification(Event event) {
-        if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.PENDING_APPROVAL) {
+        if (!eventAccessPolicy.canModifyConfiguration(event)) {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Chỉ có thể chỉnh sửa đợt mở bán khi sự kiện ở trạng thái Nháp hoặc Chờ duyệt");
         }
     }
-
 
     private void validateStateTransition(SalePhaseStatus currentStatus, SalePhaseStatus newStatus) {
         if (currentStatus == newStatus) return;

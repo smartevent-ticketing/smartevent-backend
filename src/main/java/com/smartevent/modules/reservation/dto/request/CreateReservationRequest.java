@@ -13,7 +13,7 @@ public record CreateReservationRequest(
 
         @NotEmpty(message = "Danh sách vé không được để trống")
         @Valid
-        List<ReservationItemRequest> items,
+        List<@NotNull ReservationItemRequest> items,
 
         String idempotencyKey
 ) {}
