@@ -13,6 +13,8 @@ Khi tài liệu có khác biệt, sử dụng thứ tự sau:
 
 ## Lộ trình đọc nhanh
 
+- Cập nhật 10/09/2026: [Sửa lỗi backend, kiểm thử PostgreSQL và hướng dẫn ngrok/VNPay](BACKEND_FIXES_AND_NGROK.md).
+
 ### Đánh giá đồ án
 
 1. [Trạng thái Phase 1](00-overview/phase-1-status.md)

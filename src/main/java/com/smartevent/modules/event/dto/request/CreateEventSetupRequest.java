@@ -1,7 +1,6 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.dto.request;
 
 import com.smartevent.common.enums.AreaType;
-import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;

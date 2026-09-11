@@ -1,4 +1,4 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.service.impl;
 
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.common.error.ErrorCode;

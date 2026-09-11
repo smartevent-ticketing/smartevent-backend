@@ -1,4 +1,4 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.service.impl;
 
 import com.smartevent.modules.event.service.EventCancelled;
 import com.smartevent.modules.ordering.service.OrderLifecycleService;

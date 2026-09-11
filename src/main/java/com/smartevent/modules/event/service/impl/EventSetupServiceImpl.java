@@ -1,8 +1,9 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.service.impl;
 
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.common.enums.SalePhaseStatus;
 import com.smartevent.common.error.ErrorCode;
+import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
 import com.smartevent.modules.event.dto.request.EventAreaRequest;
 import com.smartevent.modules.event.dto.request.GenerateSeatsRequest;
 import com.smartevent.modules.event.dto.response.EventResponse;
@@ -10,6 +11,7 @@ import com.smartevent.modules.event.exception.EventException;
 import com.smartevent.modules.event.service.EventAreaService;
 import com.smartevent.modules.event.service.EventSeatService;
 import com.smartevent.modules.event.service.EventService;
+import com.smartevent.modules.event.service.EventSetupService;
 import com.smartevent.modules.ticketing.dto.request.TicketSalePhaseRequest;
 import com.smartevent.modules.ticketing.dto.request.TicketTypeRequest;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
@@ -20,16 +22,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Coordinates modules without making event depend on ticketing. All writes share one transaction. */
+/** Creates the event and its ticket configuration through module services in one transaction. */
 @Service
 @RequiredArgsConstructor
-public class EventSetupService {
+public class EventSetupServiceImpl implements EventSetupService {
     private final EventService eventService;
     private final EventAreaService eventAreaService;
     private final EventSeatService eventSeatService;
     private final TicketTypeService ticketTypeService;
     private final TicketSalePhaseService ticketSalePhaseService;
 
+    @Override
     @Transactional
     public EventResponse createAndSubmit(UUID organizerId, CreateEventSetupRequest request) {
         if (request.event().venueId() == null || request.event().categoryIds() == null || request.event().categoryIds().isEmpty()) {

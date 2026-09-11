@@ -4,6 +4,8 @@ Backend bán vé sự kiện được xây dựng theo kiến trúc modular mono
 
 ## Trạng thái hiện tại
 
+> Cập nhật kiểm tra ngày 10/09/2026: xem [sửa lỗi, kiểm thử PostgreSQL và ngrok](docs/BACKEND_FIXES_AND_NGROK.md). Các con số snapshot tháng 8 bên dưới là lịch sử, không đại diện cho mã hiện tại.
+
 **Phase 1 – Core Ticketing: hoàn thành ở mức đồ án.**
 
 Snapshot được đối chiếu ngày 23/08/2026:

@@ -1,9 +1,11 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.controller;
 
 import com.smartevent.common.api.ApiResponse;
 import com.smartevent.common.security.CurrentUser;
 import com.smartevent.infrastructure.security.UserPrincipal;
+import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
 import com.smartevent.modules.event.dto.response.EventResponse;
+import com.smartevent.modules.event.service.EventSetupService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

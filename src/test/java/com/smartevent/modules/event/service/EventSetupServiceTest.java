@@ -1,13 +1,12 @@
-package com.smartevent.application.eventsetup;
+package com.smartevent.modules.event.service;
 
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
+import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
 import com.smartevent.modules.event.dto.request.GenerateSeatsRequest;
 import com.smartevent.modules.event.dto.response.EventAreaResponse;
 import com.smartevent.modules.event.dto.response.EventResponse;
-import com.smartevent.modules.event.service.EventAreaService;
-import com.smartevent.modules.event.service.EventSeatService;
-import com.smartevent.modules.event.service.EventService;
+import com.smartevent.modules.event.service.impl.EventSetupServiceImpl;
 import com.smartevent.modules.ticketing.dto.response.TicketTypeResponse;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
 import com.smartevent.modules.ticketing.service.TicketTypeService;
@@ -45,7 +44,7 @@ class EventSetupServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EventSetupService(events, areas, seats, types, phases);
+        service = new EventSetupServiceImpl(events, areas, seats, types, phases);
     }
 
     private CreateEventSetupRequest request(AreaType areaType, int capacity) {

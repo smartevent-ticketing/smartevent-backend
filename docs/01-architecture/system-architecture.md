@@ -80,6 +80,18 @@ flowchart TB
 
 Các package `analytics`, `audit`, `recommendation`, `resale` thuộc roadmap nâng cao; sự tồn tại của package không được dùng làm bằng chứng module đã hoàn thành.
 
+## Cấu trúc luồng cấu hình sự kiện
+
+Luồng tạo cấu hình sự kiện thuộc `com.smartevent.modules.event`, theo cấu trúc controller, DTO, service và implementation đang dùng trong backend:
+
+- `controller.EventSetupController` nhận `POST /api/v1/events/setup` với quyền ADMIN hoặc ORGANIZER.
+- `dto.request.CreateEventSetupRequest` chứa sự kiện và các hạng vé cần tạo.
+- `service.EventSetupService` định nghĩa thao tác tạo và gửi duyệt; `service.impl.EventSetupServiceImpl` gọi các service của event và ticketing trong cùng một transaction. Nếu tạo khu vực, ghế, loại vé, đợt bán hoặc gửi duyệt thất bại, toàn bộ cấu hình được rollback.
+- `service.impl.EventConfigurationValidator` triển khai `EventConfigurationPolicy`, kiểm tra sức chứa khu vực, địa điểm và điều kiện công bố.
+- `service.impl.EventCancellationHandler` nhận `EventCancelled` đồng bộ trong transaction hủy sự kiện. Handler gọi service của ordering, reservation, ticket và payment để xử lý dữ liệu liên quan; nghiệp vụ chi tiết vẫn nằm trong các module đó. Handler yêu cầu transaction hiện hữu (`Propagation.MANDATORY`).
+
+Không có package `application.eventsetup` riêng ở cấp gốc. Các thay đổi vị trí package không làm đổi đường dẫn API, payload hay ranh giới transaction của luồng này.
+
 ## State machine cốt lõi
 
 ```mermaid

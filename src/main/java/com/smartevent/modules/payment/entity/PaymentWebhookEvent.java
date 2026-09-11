@@ -32,7 +32,7 @@ public class PaymentWebhookEvent {
     @Column(name = "transaction_id", length = 100)
     private String transactionId;
 
-    @Column(name = "payload_hash", length = 64)
+    @Column(name = "payload_hash", length = 128)
     private String payloadHash;
 
     // SỬA TẠI ĐÂY: Khai báo ánh xạ chuẩn sang cột kiểu JSONB của PostgreSQL
