@@ -1,5 +1,6 @@
 package com.smartevent.modules.ticketing.dto.request;
 
+import com.smartevent.common.enums.TicketTypeStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,7 +17,7 @@ public record TicketTypeRequest(
 
         String description,
 
-        String status
+        TicketTypeStatus status
 ) {
 }
 

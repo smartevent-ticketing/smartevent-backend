@@ -1,9 +1,8 @@
 package com.smartevent.modules.ticketing.entity;
 
 import com.smartevent.common.entity.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import com.smartevent.common.enums.TicketTypeStatus;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -29,15 +28,17 @@ public class TicketType extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    private String status = "ACTIVE"; // ACTIVE, INACTIVE
+    private TicketTypeStatus status = TicketTypeStatus.ACTIVE;
 
-    public TicketType(UUID eventId, UUID eventAreaId, String name, String description, String status) {
+    public TicketType(UUID eventId, UUID eventAreaId, String name, String description, TicketTypeStatus status) {
         this.eventId = eventId;
         this.eventAreaId = eventAreaId;
         this.name = name;
         this.description = description;
-        this.status = status != null ? status : "ACTIVE";
+        this.status = status != null ? status : TicketTypeStatus.ACTIVE;
     }
+
 }
 

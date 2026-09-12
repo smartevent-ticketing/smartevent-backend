@@ -2,6 +2,7 @@ package com.smartevent.modules.event.service.impl;
 
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.common.enums.SalePhaseStatus;
+import com.smartevent.common.enums.TicketTypeStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
 import com.smartevent.modules.event.dto.request.EventAreaRequest;
@@ -45,7 +46,7 @@ public class EventSetupServiceImpl implements EventSetupService {
                     new EventAreaRequest(tier.name().trim(), tier.areaType(), tier.capacity(), sortOrder++, null)).id();
             if (tier.areaType() == AreaType.SEATED) generateSeats(areaId, organizerId, tier.capacity());
             UUID typeId = ticketTypeService.createTicketType(eventId, organizerId, false,
-                    new TicketTypeRequest(areaId, tier.name().trim(), null, "ACTIVE")).id();
+                    new TicketTypeRequest(areaId, tier.name().trim(), null, TicketTypeStatus.ACTIVE)).id();
             ticketSalePhaseService.createSalePhase(typeId, organizerId, false,
                     new TicketSalePhaseRequest("Mở bán chính thức", tier.price(), tier.capacity(),
                             Instant.now(), request.event().endTime(), 4, null, SalePhaseStatus.ACTIVE));

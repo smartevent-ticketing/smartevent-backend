@@ -2,6 +2,7 @@ package com.smartevent.modules.reservation.service.impl;
 
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.common.enums.SalePhaseStatus;
+import com.smartevent.common.enums.TicketTypeStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.entity.EventArea;
 import com.smartevent.modules.event.entity.EventSeat;
@@ -55,7 +56,11 @@ public class ReservationItemValidator {
                 throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Loại vé không thuộc sự kiện này");
             }
 
-            TicketSalePhase phase = ticketSalePhaseRepository.findById(itemReq.salePhaseId())
+            if (ticketType.getStatus() != TicketTypeStatus.ACTIVE) {
+                throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Hạng vé này hiện không mở bán");
+            }
+
+        TicketSalePhase phase = ticketSalePhaseRepository.findById(itemReq.salePhaseId())
                     .orElseThrow(() -> new ReservationException(ErrorCode.SALE_PHASE_NOT_FOUND, "Không tìm thấy đợt mở bán"));
 
             if (!phase.getTicketTypeId().equals(ticketType.getId())) {

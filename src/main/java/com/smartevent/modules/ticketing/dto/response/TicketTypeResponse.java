@@ -1,6 +1,7 @@
 package com.smartevent.modules.ticketing.dto.response;
 
 import com.smartevent.common.enums.AreaType;
+import com.smartevent.common.enums.TicketTypeStatus;
 import com.smartevent.modules.ticketing.entity.TicketType;
 
 import java.time.Instant;
@@ -14,7 +15,7 @@ public record TicketTypeResponse(
         AreaType areaType,
         String name,
         String description,
-        String status,
+        TicketTypeStatus status,
         Instant createdAt
 ) {
     public static TicketTypeResponse of(TicketType ticketType, String areaName, AreaType areaType) {

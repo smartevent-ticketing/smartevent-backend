@@ -1,5 +1,6 @@
 package com.smartevent.modules.event.service.impl;
 
+import com.smartevent.common.enums.EventFileType;
 import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.response.EventResponse;
@@ -7,6 +8,7 @@ import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventCategory;
 import com.smartevent.modules.event.exception.EventException;
 import com.smartevent.modules.event.repository.EventCategoryRepository;
+import com.smartevent.modules.event.repository.EventFileRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.service.EventAccessPolicy;
 import java.time.Instant;
@@ -28,6 +30,7 @@ public class EventLifecycleService {
     private final EventQueryService eventQueryService;
     private final com.smartevent.modules.event.service.EventConfigurationPolicy configurationPolicy;
     private final org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+    private final EventFileRepository eventFileRepository;
 
     @Transactional
     public EventResponse submitForApproval(UUID eventId, UUID currentUserId, boolean isAdmin) {
@@ -63,6 +66,12 @@ public class EventLifecycleService {
                     ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Sự kiện phải thuộc ít nhất một danh mục"
             );
+        }
+
+        /*Kiểm tra banner sự kiên*/
+        long bannerCount = eventFileRepository.countByEventIdAndFileType(event.getId(), EventFileType.BANNER);
+        if (bannerCount == 0) {
+            throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Sự kiện bắt buộc phải có ảnh Banner trước khi gửi duyệt");
         }
 
         /*Lưu trạng thái mới*/
