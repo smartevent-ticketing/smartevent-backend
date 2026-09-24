@@ -309,7 +309,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         if (currentStatus == newStatus) return;
         boolean isValid = switch (currentStatus) {
             case DRAFT -> newStatus == SalePhaseStatus.SCHEDULED || newStatus == SalePhaseStatus.ACTIVE;
-            case SCHEDULED -> newStatus == SalePhaseStatus.ACTIVE || newStatus == SalePhaseStatus.CLOSED;
+            case SCHEDULED -> newStatus == SalePhaseStatus.ACTIVE || newStatus == SalePhaseStatus.DRAFT || newStatus == SalePhaseStatus.CLOSED;
             case ACTIVE -> newStatus == SalePhaseStatus.PAUSED || newStatus == SalePhaseStatus.CLOSED || newStatus == SalePhaseStatus.SOLD_OUT;
             case PAUSED -> newStatus == SalePhaseStatus.ACTIVE || newStatus == SalePhaseStatus.CLOSED;
             case CLOSED, SOLD_OUT -> false; // Đã đóng hoặc hết vé thì không thể tự ý chuyển lại trạng thái khác

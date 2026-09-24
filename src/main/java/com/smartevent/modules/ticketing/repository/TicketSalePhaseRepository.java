@@ -37,9 +37,16 @@ public interface TicketSalePhaseRepository extends JpaRepository<TicketSalePhase
     boolean existsByTicketTypeId(UUID ticketTypeId);
 
     // Tính tổng số lượng vé đã cấu hình trên toàn bộ Khán đài (loại trừ đợt đang sửa)
+    // Với đợt CLOSED: Chỉ tính số vé thực tế đã bán, số vé chưa bán được hoàn lại sức chứa khán đài
     @Query("""
-        SELECT COALESCE(SUM(sp.quantity), 0) FROM TicketSalePhase sp
+        SELECT COALESCE(SUM(
+            CASE 
+                WHEN sp.status = com.smartevent.common.enums.SalePhaseStatus.CLOSED THEN COALESCE(ic.soldQuantity, 0)
+                ELSE sp.quantity 
+            END
+        ), 0) FROM TicketSalePhase sp
         JOIN TicketType tt ON sp.ticketTypeId = tt.id
+        LEFT JOIN InventoryCounter ic ON ic.salePhaseId = sp.id
         WHERE tt.eventAreaId = :eventAreaId
           AND (:excludePhaseId IS NULL OR sp.id != :excludePhaseId)
     """)
@@ -48,11 +55,12 @@ public interface TicketSalePhaseRepository extends JpaRepository<TicketSalePhase
             @Param("excludePhaseId") UUID excludePhaseId
     );
 
-    // Kiểm tra chồng lấn thời gian mở bán [saleStartAt, saleEndAt) cùng hạng vé
+    // Kiểm tra chồng lấn thời gian mở bán [saleStartAt, saleEndAt) cùng hạng vé (loại trừ đợt đã đóng)
     @Query("""
         SELECT COUNT(sp) > 0 FROM TicketSalePhase sp
         WHERE sp.ticketTypeId = :ticketTypeId
           AND (:excludePhaseId IS NULL OR sp.id != :excludePhaseId)
+          AND sp.status != com.smartevent.common.enums.SalePhaseStatus.CLOSED
           AND sp.saleStartAt < :saleEndAt
           AND sp.saleEndAt > :saleStartAt
     """)
