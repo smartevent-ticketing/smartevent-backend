@@ -4,6 +4,7 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,12 @@ public class EmailService {
 
     @Autowired(required = false)
     private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:smartevent.ticketing@gmail.com}")
+    private String senderEmail;
+
+    @Value("${app.mail.enabled:true}")
+    private boolean mailEnabled;
 
     public void sendTicketEmail(String recipientEmail, String ticketCode, String eventName, String seatCode, String qrCodeBase64) {
         String subject = "🎟️ Vé Điện Tử Cho Sự Kiện: " + eventName + " [Mã Vé: " + ticketCode + "]";
@@ -72,15 +79,15 @@ public class EmailService {
     }
 
     private void sendHtmlEmailWithAttachment(String toEmail, String subject, String htmlBody, String attachmentFilename, byte[] attachmentBytes) {
-        if (mailSender == null) {
-            log.info("[MOCK MAIL SENDER] Sẽ gửi email tới: {} | Tiêu đề: {}", toEmail, subject);
+        if (!mailEnabled || mailSender == null) {
+            log.info("[MOCK/DISABLED MAIL SENDER] Sẽ gửi email tới: {} | Tiêu đề: {}", toEmail, subject);
             return;
         }
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom("smartevent.tickets@gmail.com", "Smart Event Ticketing Platform");
+            helper.setFrom(senderEmail, "Smart Event Ticketing Platform");
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
