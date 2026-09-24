@@ -30,6 +30,10 @@ public interface TicketSalePhaseRepository extends JpaRepository<TicketSalePhase
             SalePhaseStatus status, Instant start, Instant end
     );
 
+    List<TicketSalePhase> findByStatusInAndSaleStartAtLessThanEqualAndSaleEndAtAfter(
+            List<SalePhaseStatus> statuses, Instant start, Instant end
+    );
+
     boolean existsByTicketTypeId(UUID ticketTypeId);
 
     // Tính tổng số lượng vé đã cấu hình trên toàn bộ Khán đài (loại trừ đợt đang sửa)

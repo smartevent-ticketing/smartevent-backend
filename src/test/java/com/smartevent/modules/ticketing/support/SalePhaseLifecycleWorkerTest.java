@@ -74,6 +74,10 @@ class SalePhaseLifecycleWorkerTest {
                 4, 2, SalePhaseStatus.SCHEDULED
         );
         samplePhase.setId(phaseId);
+
+        lenient().when(ticketSalePhaseRepository.findByStatusAndSaleStartAtLessThanEqualAndSaleEndAtAfter(
+                eq(SalePhaseStatus.DRAFT), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
     }
 
     @Test
@@ -159,6 +163,29 @@ class SalePhaseLifecycleWorkerTest {
 
         assertEquals(SalePhaseStatus.SOLD_OUT, samplePhase.getStatus());
         assertNotNull(samplePhase.getSoldOutAt());
+        verify(ticketSalePhaseRepository, times(1)).save(samplePhase);
+    }
+
+    @Test
+    @DisplayName("Kích hoạt DRAFT -> ACTIVE khi đến giờ và sự kiện đã PUBLISHED")
+    void processSalePhaseLifecycle_ActivatesDraftPhases_WhenEventIsPublished() {
+        samplePhase.setStatus(SalePhaseStatus.DRAFT);
+        when(ticketSalePhaseRepository.findByStatusAndSaleStartAtLessThanEqualAndSaleEndAtAfter(
+                eq(SalePhaseStatus.SCHEDULED), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of());
+        when(ticketSalePhaseRepository.findByStatusAndSaleStartAtLessThanEqualAndSaleEndAtAfter(
+                eq(SalePhaseStatus.DRAFT), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(samplePhase));
+
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(ticketSalePhaseRepository.findByStatusAndSaleEndAtBefore(eq(SalePhaseStatus.ACTIVE), any(Instant.class)))
+                .thenReturn(List.of());
+        when(ticketSalePhaseRepository.findByStatus(SalePhaseStatus.ACTIVE)).thenReturn(List.of());
+
+        worker.processSalePhaseLifecycle();
+
+        assertEquals(SalePhaseStatus.ACTIVE, samplePhase.getStatus());
         verify(ticketSalePhaseRepository, times(1)).save(samplePhase);
     }
 }

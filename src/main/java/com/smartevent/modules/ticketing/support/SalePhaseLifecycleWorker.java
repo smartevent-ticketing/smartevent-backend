@@ -38,22 +38,12 @@ public class SalePhaseLifecycleWorker {
         // 1. Chuyển SCHEDULED -> ACTIVE khi đến giờ mở bán và sự kiện đã PUBLISHED
         List<TicketSalePhase> scheduledPhases = ticketSalePhaseRepository
                 .findByStatusAndSaleStartAtLessThanEqualAndSaleEndAtAfter(SalePhaseStatus.SCHEDULED, now, now);
+        activatePhases(scheduledPhases);
 
-        for (TicketSalePhase phase : scheduledPhases) {
-            try {
-                Optional<TicketType> ticketTypeOpt = ticketTypeRepository.findById(phase.getTicketTypeId());
-                if (ticketTypeOpt.isPresent()) {
-                    Optional<Event> eventOpt = eventRepository.findById(ticketTypeOpt.get().getEventId());
-                    if (eventOpt.isPresent() && eventOpt.get().getStatus() == EventStatus.PUBLISHED) {
-                        phase.setStatus(SalePhaseStatus.ACTIVE);
-                        ticketSalePhaseRepository.save(phase);
-                        log.info("SalePhaseLifecycleWorker: Kích hoạt đợt bán {} (ID: {}) -> ACTIVE", phase.getName(), phase.getId());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Lỗi khi kích hoạt đợt bán {}: {}", phase.getId(), e.getMessage());
-            }
-        }
+        // 1b. Tự động kích hoạt DRAFT -> ACTIVE khi sự kiện đã PUBLISHED và đang trong thời gian mở bán
+        List<TicketSalePhase> draftPhases = ticketSalePhaseRepository
+                .findByStatusAndSaleStartAtLessThanEqualAndSaleEndAtAfter(SalePhaseStatus.DRAFT, now, now);
+        activatePhases(draftPhases);
 
         // 2. Chuyển ACTIVE -> CLOSED khi quá hạn saleEndAt
         List<TicketSalePhase> expiredPhases = ticketSalePhaseRepository
@@ -85,6 +75,25 @@ public class SalePhaseLifecycleWorker {
                 }
             } catch (Exception e) {
                 log.error("Lỗi khi kiểm tra SOLD_OUT đợt bán {}: {}", phase.getId(), e.getMessage());
+            }
+        }
+    }
+
+    private void activatePhases(List<TicketSalePhase> phases) {
+        if (phases == null || phases.isEmpty()) return;
+        for (TicketSalePhase phase : phases) {
+            try {
+                Optional<TicketType> ticketTypeOpt = ticketTypeRepository.findById(phase.getTicketTypeId());
+                if (ticketTypeOpt.isPresent()) {
+                    Optional<Event> eventOpt = eventRepository.findById(ticketTypeOpt.get().getEventId());
+                    if (eventOpt.isPresent() && eventOpt.get().getStatus() == EventStatus.PUBLISHED) {
+                        phase.setStatus(SalePhaseStatus.ACTIVE);
+                        ticketSalePhaseRepository.save(phase);
+                        log.info("SalePhaseLifecycleWorker: Kích hoạt đợt bán {} (ID: {}) -> ACTIVE", phase.getName(), phase.getId());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi kích hoạt đợt bán {}: {}", phase.getId(), e.getMessage());
             }
         }
     }

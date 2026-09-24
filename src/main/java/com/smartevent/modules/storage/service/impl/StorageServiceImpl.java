@@ -10,7 +10,9 @@ import com.smartevent.modules.storage.entity.FileEntity;
 import com.smartevent.modules.storage.exception.FileException;
 import com.smartevent.modules.storage.repository.FileRepository;
 import com.smartevent.modules.storage.service.StorageService;
+import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -66,8 +68,11 @@ public class StorageServiceImpl implements StorageService {
         }
 
         // 2. Sinh đường dẫn độc nhất trên MinIO (objectName) sau khi sanitize folder
-        String sanitized = (folder != null) ? folder.replaceAll("[^a-zA-Z0-9_-]", "") : "";
-        String sanitizedFolder = sanitized.isBlank() ? "general" : sanitized;
+        String sanitized = (folder != null) ? folder.replaceAll("[^a-zA-Z0-9_/-]", "") : "";
+        String sanitizedFolder = sanitized.isBlank() ? "general" : (sanitized.startsWith("/") ? sanitized.substring(1) : sanitized);
+        if (sanitizedFolder.endsWith("/")) {
+            sanitizedFolder = sanitizedFolder.substring(0, sanitizedFolder.length() - 1);
+        }
         String extension = extractExtension(file.getOriginalFilename());
         java.util.List<String> allowedExtensions = java.util.List.of(".jpg", ".jpeg", ".png", ".webp", ".pdf");
         if (!allowedExtensions.contains(extension.toLowerCase())) {
@@ -76,7 +81,8 @@ public class StorageServiceImpl implements StorageService {
 
         String objectName = sanitizedFolder + "/" + UUID.randomUUID() + extension;
 
-        // 3. Đẩy file lên MinIO
+        // 3. Đảm bảo bucket tồn tại và đẩy file lên MinIO
+        ensureBucketExists(defaultBucket);
         try {
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -88,7 +94,8 @@ public class StorageServiceImpl implements StorageService {
             );
         } catch (Exception e) {
             log.error("Lỗi khi upload file lên MinIO: {}", e.getMessage(), e);
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể tải file lên hệ thống lưu trữ");
+            String detailMsg = (e.getMessage() != null && !e.getMessage().isBlank()) ? ": " + e.getMessage() : "";
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể tải file lên hệ thống lưu trữ" + detailMsg);
         }
 
         // 4. Lưu metadata vào Database (PostgreSQL)
@@ -201,6 +208,22 @@ public class StorageServiceImpl implements StorageService {
         } catch (Exception e) {
             log.error("Lỗi khi sinh Presigned URL từ MinIO: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Không thể tạo link tải file tạm thời");
+        }
+    }
+
+    private void ensureBucketExists(String bucketName) {
+        try {
+            boolean exists = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build()
+            );
+            if (!exists) {
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(bucketName).build()
+                );
+                log.info("Đã tự động khởi tạo MinIO bucket: {}", bucketName);
+            }
+        } catch (Exception e) {
+            log.warn("Không thể kiểm tra/tự động tạo bucket {}: {}", bucketName, e.getMessage());
         }
     }
 }
