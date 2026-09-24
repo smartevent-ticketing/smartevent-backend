@@ -204,4 +204,100 @@ class BackendBusinessRegressionTest {
         verify(refreshTokens).revokeAllUserTokens(eq(user.getId()), any());
         verify(transactionManager, never()).rollback(transaction);
     }
+
+    @Test
+    void reservationMustFailIfEventHasAlreadyEnded() {
+        var reservations = mock(ReservationRepository.class);
+        var items = mock(ReservationItemRepository.class);
+        var events = mock(EventRepository.class);
+        var areas = mock(EventAreaRepository.class);
+        var seats = mock(EventSeatRepository.class);
+        var types = mock(TicketTypeRepository.class);
+        var phases = mock(TicketSalePhaseRepository.class);
+
+        UUID eventId = UUID.randomUUID();
+        UUID typeId = UUID.randomUUID(), phaseId = UUID.randomUUID();
+
+        // Event that ended yesterday
+        Event endedEvent = new Event();
+        endedEvent.setId(eventId);
+        endedEvent.setName("Ended concert");
+        endedEvent.setStatus(EventStatus.PUBLISHED);
+        endedEvent.setStartTime(Instant.now().minusSeconds(86400 * 2));
+        endedEvent.setEndTime(Instant.now().minusSeconds(86400));
+
+        when(events.findByIdForShare(eventId)).thenReturn(Optional.of(endedEvent));
+
+        var service = new ReservationServiceImpl(
+                new ReservationItemValidator(areas, seats, types, phases),
+                new ReservationResources(items, seats, mock(InventoryService.class), mock(UserSalePhaseCounterService.class)),
+                mock(ReservationQueryService.class), reservations, items, events
+        );
+
+        var request = new CreateReservationRequest(
+                eventId,
+                List.of(new ReservationItemRequest(typeId, phaseId, null, 1)),
+                UUID.randomUUID().toString()
+        );
+
+        ReservationException ex = assertThrows(ReservationException.class,
+                () -> service.createReservation(UUID.randomUUID(), request),
+                "Reservations for ended events must be rejected (R06)"
+        );
+        assertEquals(com.smartevent.common.error.ErrorCode.BUSINESS_RULE_VIOLATION, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("kết thúc"));
+    }
+
+    @Test
+    void eventSubmissionReadinessMustEnforceAllChecklistCriteriaAndBlockDraftSubmission() {
+        var events = mock(EventRepository.class);
+        var categories = mock(EventCategoryRepository.class);
+        var files = mock(EventFileRepository.class);
+        var areas = mock(EventAreaRepository.class);
+        var types = mock(TicketTypeRepository.class);
+        var phases = mock(TicketSalePhaseRepository.class);
+        var policy = mock(com.smartevent.modules.event.service.EventAccessPolicy.class);
+        var configPolicy = mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class);
+
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setName("Draft Festival");
+        event.setStatus(EventStatus.DRAFT);
+        event.setStartTime(Instant.now().plusSeconds(3600));
+        event.setEndTime(Instant.now().plusSeconds(7200));
+        event.setVenueId(UUID.randomUUID());
+
+        when(policy.canManage(any(), any(), anyBoolean())).thenReturn(true);
+        when(events.findById(eventId)).thenReturn(Optional.of(event));
+        when(events.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
+        when(categories.findByIdEventId(eventId)).thenReturn(List.of(new EventCategory(eventId, UUID.randomUUID())));
+        when(files.countByEventIdAndFileType(eventId, EventFileType.BANNER)).thenReturn(0L); // Missing banner!
+        when(areas.countByEventId(eventId)).thenReturn(1L);
+        when(types.countByEventId(eventId)).thenReturn(1L);
+        when(phases.countByEventId(eventId)).thenReturn(0L); // Missing phases!
+
+        var lifecycle = new com.smartevent.modules.event.service.impl.EventLifecycleService(
+                policy, events, categories,
+                mock(com.smartevent.modules.event.service.impl.EventQueryService.class),
+                configPolicy,
+                mock(org.springframework.context.ApplicationEventPublisher.class),
+                files, areas, types, phases
+        );
+
+        var readiness = lifecycle.checkSubmissionReadiness(eventId, organizerId, false);
+        assertFalse(readiness.ready(), "Must not be ready when missing banner and sale phases");
+        assertFalse(readiness.checklist().get("hasBanner"));
+        assertFalse(readiness.checklist().get("hasSalePhases"));
+        assertEquals(2, readiness.blockers().size());
+
+        // Submission must also be blocked
+        assertThrows(com.smartevent.modules.event.exception.EventException.class,
+                () -> lifecycle.submitForApproval(eventId, organizerId, false),
+                "Submitting incomplete event must fail (EVENT-001)"
+        );
+    }
 }
