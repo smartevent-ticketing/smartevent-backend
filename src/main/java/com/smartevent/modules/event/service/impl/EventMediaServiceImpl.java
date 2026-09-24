@@ -32,7 +32,7 @@ import java.util.UUID;
 public class EventMediaServiceImpl implements EventMediaService {
 
     private static final long MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-    private static final int MAX_GALLERY_IMAGES = 8;
+    private static final int MAX_GALLERY_IMAGES = 10;
     private static final Set<String> ALLOWED_MIME_TYPES = Set.of(
             "image/jpeg",
             "image/png",
@@ -65,7 +65,7 @@ public class EventMediaServiceImpl implements EventMediaService {
                 }
             }
         } else if (fileType == EventFileType.GALLERY) {
-            // Quy tắc: Tối đa 8 ảnh gallery
+            // Quy tắc: Tối đa 10 ảnh gallery
             long galleryCount = eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.GALLERY);
             if (galleryCount >= MAX_GALLERY_IMAGES) {
                 throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Một sự kiện chỉ được có tối đa " + MAX_GALLERY_IMAGES + " ảnh trong bộ sưu tập (Gallery)");
@@ -80,11 +80,23 @@ public class EventMediaServiceImpl implements EventMediaService {
         // Lưu liên kết vào event_files
         EventFile eventFile = new EventFile(eventId, uploadRes.id(), fileType, sortOrder);
         eventFile = eventFileRepository.save(eventFile);
+
+        // Đảm bảo trả về URL có chữ ký truy cập ngay lập tức cho client
+        String fileUrl = uploadRes.url();
+        try {
+            var presigned = storageService.getPresignedUrl(uploadRes.id(), currentUserId);
+            if (presigned != null && presigned.url() != null) {
+                fileUrl = presigned.url();
+            }
+        } catch (Exception e) {
+            log.warn("Không thể sinh presigned URL cho file vừa upload {}: {}", uploadRes.id(), e.getMessage());
+        }
+
         return new EventMediaResponse(
                 eventFile.getId(),
                 eventFile.getFileId(),
                 eventFile.getFileType(),
-                uploadRes.url(),
+                fileUrl,
                 eventFile.getSortOrder(),
                 eventFile.getCreatedAt()
         );

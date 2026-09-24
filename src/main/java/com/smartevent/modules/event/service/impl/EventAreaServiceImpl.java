@@ -1,5 +1,7 @@
 package com.smartevent.modules.event.service.impl;
 
+import com.smartevent.common.enums.AreaType;
+import com.smartevent.common.enums.SeatStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.EventAreaRequest;
 import com.smartevent.modules.event.dto.response.EventAreaResponse;
@@ -106,6 +108,17 @@ public class EventAreaServiceImpl implements EventAreaService {
         }
 
         validateVenueCapacity(event, request.capacity(), areaId);
+
+        // Nếu chuyển từ SEATED sang STANDING: dọn dẹp các ghế chưa bán/chưa giữ chỗ
+        if (area.getAreaType() == AreaType.SEATED && request.areaType() == AreaType.STANDING) {
+            long heldOrSold = eventSeatRepository.countByEventAreaIdAndStatus(areaId, SeatStatus.HELD)
+                    + eventSeatRepository.countByEventAreaIdAndStatus(areaId, SeatStatus.SOLD);
+            if (heldOrSold > 0) {
+                throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Không thể chuyển sang khu đứng vì đã có ghế được giữ chỗ hoặc đã bán");
+            }
+            eventSeatRepository.deleteByEventAreaId(areaId);
+        }
+
         configurationPolicy.validateAreaChange(area, request.capacity(), request.areaType());
 
         // Nếu khu vực đang có ghế và sức chứa mới nhỏ hơn số ghế hiện có

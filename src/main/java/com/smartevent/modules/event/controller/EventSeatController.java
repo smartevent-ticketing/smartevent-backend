@@ -44,7 +44,7 @@ public class EventSeatController {
     @Operation(summary = "Lấy danh sách tất cả các ghế trong một phân khu (có phân trang)")
     public ApiResponse<PageResponse<EventSeatResponse>> getSeatsByArea(
             @PathVariable UUID areaId,
-            @PageableDefault(size = 50, sort = "rowName", direction = Sort.Direction.ASC) Pageable pageable
+            @PageableDefault(size = 1000, sort = "rowName", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         return ApiResponse.success(eventSeatService.getSeatsByArea(areaId, pageable));
     }
