@@ -61,12 +61,16 @@ public class ReservationServiceImpl implements ReservationService {
                     "Bạn đang có một phiên giữ chỗ chưa hoàn tất cho sự kiện này. Vui lòng thanh toán hoặc hủy phiên cũ.");
         }
 
-        // 3. Kiểm tra Sự kiện phải đang PUBLISHED
+        // 3. Kiểm tra Sự kiện phải đang PUBLISHED và chưa kết thúc
         Event event = eventRepository.findByIdForShare(request.eventId())
                 .orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy sự kiện"));
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new ReservationException(ErrorCode.EVENT_NOT_PUBLISHED, "Sự kiện hiện chưa mở bán vé");
+        }
+
+        if (event.getEndTime() != null && Instant.now().isAfter(event.getEndTime())) {
+            throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Sự kiện đã kết thúc, không thể đặt vé");
         }
 
         var selections = reservationItemValidator.validateAll(request.eventId(), request.items(), Instant.now());

@@ -56,6 +56,14 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         if (!request.saleEndAt().isAfter(request.saleStartAt())) {
             throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán phải sau thời gian bắt đầu");
         }
+        if (event.getEndTime() != null && request.saleEndAt().isAfter(event.getEndTime())) {
+            throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán không được sau khi sự kiện kết thúc");
+        }
+        // Kiểm tra chồng lấn thời gian cùng hạng vé
+        if (ticketSalePhaseRepository.existsOverlappingPhase(ticketTypeId, null, request.saleStartAt(), request.saleEndAt())) {
+            throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian mở bán bị trùng lặp với đợt mở bán khác của cùng hạng vé");
+        }
+
         // 4. Tấm khiên 3: Capacity Guard
         EventArea area = eventAreaRepository.findById(ticketType.getEventAreaId())
                 .orElseThrow(() -> new TicketingException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khu vực/khán đài"));
@@ -65,7 +73,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
             throw new TicketingException(ErrorCode.PHASE_CAPACITY_EXCEEDED,
                     String.format("Tổng số vé phát hành (%d) vượt quá sức chứa khán đài (%d)", newTotalQuantity, area.getCapacity()));
         }
-        // 5. Lưu Entity
+        // 5. Lưu Entity (luôn khởi tạo ở DRAFT)
         TicketSalePhase phase = new TicketSalePhase(
                 ticketTypeId,
                 request.name(),
@@ -75,7 +83,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
                 request.saleEndAt(),
                 request.maxPerOrder(),
                 request.maxPerUser(),
-                request.status()
+                SalePhaseStatus.DRAFT
         );
         TicketSalePhase saved = ticketSalePhaseRepository.save(phase);
 
@@ -94,7 +102,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
                         ErrorCode.TICKET_TYPE_NOT_FOUND, "Không tìm thấy loại vé"
                 ));
 
-        List<TicketSalePhase> phases = ticketSalePhaseRepository.findByTicketTypeId(ticketTypeId);
+        List<TicketSalePhase> phases = ticketSalePhaseRepository.findByTicketTypeIdOrderBySaleStartAtAscIdAsc(ticketTypeId);
 
         return phases.stream()
                 .map(phase -> {
@@ -114,7 +122,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         }
         List<TicketType> ticketTypes = ticketTypeRepository.findByEventId(eventId);
         List<UUID> ticketTypeIds = ticketTypes.stream().map(TicketType::getId).toList();
-        List<TicketSalePhase> phases = ticketSalePhaseRepository.findByTicketTypeIdIn(ticketTypeIds);
+        List<TicketSalePhase> phases = ticketSalePhaseRepository.findByTicketTypeIdInOrderBySaleStartAtAscIdAsc(ticketTypeIds);
         return phases.stream()
                 .map(phase -> {
                     String typeName = ticketTypes.stream()
@@ -161,6 +169,13 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         if (!request.saleEndAt().isAfter(request.saleStartAt())) {
             throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán phải sau thời gian bắt đầu");
         }
+        if (event.getEndTime() != null && request.saleEndAt().isAfter(event.getEndTime())) {
+            throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán không được sau khi sự kiện kết thúc");
+        }
+        // Kiểm tra chồng lấn thời gian cùng hạng vé (loại trừ phase đang sửa)
+        if (ticketSalePhaseRepository.existsOverlappingPhase(phase.getTicketTypeId(), id, request.saleStartAt(), request.saleEndAt())) {
+            throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian mở bán bị trùng lặp với đợt mở bán khác của cùng hạng vé");
+        }
 
         EventArea area = eventAreaRepository.findById(ticketType.getEventAreaId())
                 .orElseThrow(() -> new TicketingException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khu vực/khán đài"));
@@ -187,9 +202,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
             phase.setMaxPerOrder(request.maxPerOrder());
         }
         phase.setMaxPerUser(request.maxPerUser());
-        if (request.status() != null) {
-            phase.setStatus(request.status());
-        }
+        // Lưu ý: Status không được thay đổi qua updateSalePhase (PUT), chỉ chuyển trạng thái qua PATCH /status
 
         TicketSalePhase updated = ticketSalePhaseRepository.save(phase);
         log.info("Cập nhật đợt mở bán: {} (ID: {})", updated.getName(), id);

@@ -94,6 +94,8 @@ class TicketSalePhaseServiceTest {
         sampleEvent.setId(eventId);
         sampleEvent.setOrganizerId(organizerId);
         sampleEvent.setStatus(EventStatus.DRAFT);
+        sampleEvent.setStartTime(Instant.now().plus(1, ChronoUnit.DAYS));
+        sampleEvent.setEndTime(Instant.now().plus(10, ChronoUnit.DAYS));
 
         sampleArea = new EventArea(eventId, "Khán Đài A", AreaType.SEATED, 1000, 1, "Mô tả");
         sampleArea.setId(areaId);
@@ -270,5 +272,44 @@ class TicketSalePhaseServiceTest {
                 ticketSalePhaseService.addRule(phaseId, organizerId, false, request)
         );
         assertEquals(ErrorCode.RULE_ALREADY_EXISTS, ex.getErrorCode());
+    }
+
+    @Test
+    @DisplayName("Ném lỗi khi thời gian mở bán chồng lấn với đợt khác của cùng hạng vé")
+    void createSalePhase_OverlappingPhase_ThrowsException() {
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        Instant end = Instant.now().plus(5, ChronoUnit.DAYS);
+        TicketSalePhaseRequest request = new TicketSalePhaseRequest(
+                "Phase 2", BigDecimal.valueOf(500000), 200, start, end, 4, 2, SalePhaseStatus.DRAFT
+        );
+
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(ticketSalePhaseRepository.existsOverlappingPhase(ticketTypeId, null, start, end)).thenReturn(true);
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request)
+        );
+        assertEquals(ErrorCode.SALE_PHASE_INVALID_TIME, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("trùng lặp"));
+    }
+
+    @Test
+    @DisplayName("Ném lỗi khi thời gian kết thúc đợt mở bán sau thời gian kết thúc sự kiện")
+    void createSalePhase_EndAfterEventEnd_ThrowsException() {
+        Instant start = sampleEvent.getEndTime().minus(1, ChronoUnit.DAYS);
+        Instant end = sampleEvent.getEndTime().plus(1, ChronoUnit.DAYS);
+        TicketSalePhaseRequest request = new TicketSalePhaseRequest(
+                "Late Phase", BigDecimal.valueOf(500000), 200, start, end, 4, 2, SalePhaseStatus.DRAFT
+        );
+
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request)
+        );
+        assertEquals(ErrorCode.SALE_PHASE_INVALID_TIME, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("sự kiện kết thúc"));
     }
 }

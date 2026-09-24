@@ -19,5 +19,8 @@ public record TicketTypeRequest(
 
         TicketTypeStatus status
 ) {
+    public TicketTypeRequest(UUID eventAreaId, String name, String description, String status) {
+        this(eventAreaId, name, description, status != null ? TicketTypeStatus.valueOf(status) : null);
+    }
 }
 

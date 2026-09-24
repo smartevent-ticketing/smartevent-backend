@@ -84,6 +84,17 @@ public class EventController {
         return ApiResponse.success(eventService.getEventById(id, currentUserId, isAdmin));
     }
 
+    @GetMapping("/{id}/submission-readiness")
+    @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
+    @Operation(summary = "Kiểm tra điều kiện để nộp duyệt sự kiện (Submission Readiness Preflight)")
+    public ApiResponse<com.smartevent.modules.event.dto.response.EventSubmissionReadinessResponse> checkSubmissionReadiness(
+            @PathVariable UUID id,
+            @CurrentUser UserPrincipal currentUser
+    ) {
+        boolean isAdmin = checkIsAdmin(currentUser);
+        return ApiResponse.success(eventService.checkSubmissionReadiness(id, currentUser.getId(), isAdmin));
+    }
+
     @PostMapping("/{id}/submit")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
     @Operation(summary = "Gửi sự kiện lên Admin để yêu cầu phê duyệt (DRAFT -> SUBMITTED)")

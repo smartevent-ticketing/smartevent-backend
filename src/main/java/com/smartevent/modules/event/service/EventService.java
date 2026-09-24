@@ -25,6 +25,9 @@ public interface EventService {
     // 7. Ban tổ chức nộp sự kiện chờ Admin phê duyệt
     EventResponse submitForApproval(UUID eventId, UUID currentUserId, boolean isAdmin);
 
+    // 7b. Kiểm tra điều kiện nộp duyệt sự kiện (Submission Readiness Preflight)
+    com.smartevent.modules.event.dto.response.EventSubmissionReadinessResponse checkSubmissionReadiness(UUID eventId, UUID currentUserId, boolean isAdmin);
+
     // 8. Admin phê duyệt sự kiện (chuyển sang PUBLISHED)
     EventResponse approveEvent(UUID eventId);
 

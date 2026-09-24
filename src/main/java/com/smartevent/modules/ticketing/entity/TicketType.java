@@ -40,5 +40,9 @@ public class TicketType extends BaseEntity {
         this.status = status != null ? status : TicketTypeStatus.ACTIVE;
     }
 
+    public TicketType(UUID eventId, UUID eventAreaId, String name, String description, String status) {
+        this(eventId, eventAreaId, name, description, status != null ? TicketTypeStatus.valueOf(status) : TicketTypeStatus.ACTIVE);
+    }
+
 }
 

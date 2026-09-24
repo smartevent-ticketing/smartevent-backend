@@ -443,4 +443,29 @@ class ReservationServiceTest {
         verify(inventoryService, times(1)).releaseHeldInventory(salePhaseId, 1);
         verify(userSalePhaseCounterService, times(1)).releaseUserHeldTickets(userId, salePhaseId, 1);
     }
+
+    @Test
+    @DisplayName("R06 Fix: Giữ chỗ thất bại khi sự kiện đã kết thúc")
+    void createReservation_EventAlreadyEnded_ThrowsException() {
+        Event endedEvent = new Event();
+        endedEvent.setId(eventId);
+        endedEvent.setStatus(EventStatus.PUBLISHED);
+        endedEvent.setStartTime(Instant.now().minus(2, ChronoUnit.DAYS));
+        endedEvent.setEndTime(Instant.now().minus(1, ChronoUnit.DAYS));
+
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(endedEvent));
+
+        CreateReservationRequest request = new CreateReservationRequest(
+                eventId,
+                List.of(new ReservationItemRequest(ticketTypeId, salePhaseId, seatId, 1)),
+                "idemp-r06"
+        );
+
+        ReservationException exception = assertThrows(ReservationException.class, () ->
+                reservationService.createReservation(userId, request)
+        );
+
+        assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, exception.getErrorCode());
+        assertTrue(exception.getMessage().contains("kết thúc"));
+    }
 }

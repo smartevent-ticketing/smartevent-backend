@@ -1,5 +1,6 @@
 package com.smartevent.modules.event.service;
 
+import com.smartevent.common.enums.EventFileType;
 import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
@@ -51,6 +52,15 @@ class EventServiceTest {
     @Mock
     private EventCategoryRepository eventCategoryRepository;
 
+    @Mock
+    private com.smartevent.modules.event.repository.EventAreaRepository eventAreaRepository;
+
+    @Mock
+    private com.smartevent.modules.ticketing.repository.TicketTypeRepository ticketTypeRepository;
+
+    @Mock
+    private com.smartevent.modules.ticketing.repository.TicketSalePhaseRepository ticketSalePhaseRepository;
+
     private EventServiceImpl eventService;
 
     @BeforeEach
@@ -78,7 +88,13 @@ class EventServiceTest {
                                 categoryRepository,
                                 venueRepository,
                                 eventFileRepository,
-                                eventCategoryRepository), mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class), mock(org.springframework.context.ApplicationEventPublisher.class)),
+                                eventCategoryRepository),
+                        mock(com.smartevent.modules.event.service.EventConfigurationPolicy.class),
+                        mock(org.springframework.context.ApplicationEventPublisher.class),
+                        eventFileRepository,
+                        eventAreaRepository,
+                        ticketTypeRepository,
+                        ticketSalePhaseRepository),
                 new EventQueryService(
                         eventRepository,
                         categoryRepository,
@@ -208,19 +224,123 @@ class EventServiceTest {
         Event event = new Event();
         event.setId(eventId);
         event.setOrganizerId(organizerId);
+        event.setName("Music Festival 2026");
+        event.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        event.setEndTime(Instant.now().plus(7, ChronoUnit.DAYS).plus(4, ChronoUnit.HOURS));
         event.setVenueId(venueId);
         event.setStatus(EventStatus.DRAFT);
 
         EventCategory ec = new EventCategory(eventId, UUID.randomUUID());
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventCategoryRepository.findByIdEventId(eventId)).thenReturn(List.of(ec));
+        when(eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.BANNER)).thenReturn(1L);
+        when(eventAreaRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketTypeRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketSalePhaseRepository.countByEventId(eventId)).thenReturn(1L);
         when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EventResponse response = eventService.submitForApproval(eventId, organizerId, false);
 
         assertNotNull(response);
         assertEquals(EventStatus.PENDING_APPROVAL, response.status());
+    }
+
+    @Test
+    @DisplayName("Kiểm tra điều kiện nộp duyệt - Đạt tất cả điều kiện (ready = true)")
+    void checkSubmissionReadiness_AllReady() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        UUID venueId = UUID.randomUUID();
+
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setName("Music Festival 2026");
+        event.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        event.setEndTime(Instant.now().plus(7, ChronoUnit.DAYS).plus(4, ChronoUnit.HOURS));
+        event.setVenueId(venueId);
+        event.setStatus(EventStatus.DRAFT);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventCategoryRepository.findByIdEventId(eventId)).thenReturn(List.of(new EventCategory(eventId, UUID.randomUUID())));
+        when(eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.BANNER)).thenReturn(1L);
+        when(eventAreaRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketTypeRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketSalePhaseRepository.countByEventId(eventId)).thenReturn(1L);
+
+        var readiness = eventService.checkSubmissionReadiness(eventId, organizerId, false);
+
+        assertTrue(readiness.ready());
+        assertTrue(readiness.blockers().isEmpty());
+        assertTrue(readiness.checklist().get("hasBasicInfo"));
+        assertTrue(readiness.checklist().get("hasVenue"));
+        assertTrue(readiness.checklist().get("hasCategories"));
+        assertTrue(readiness.checklist().get("hasBanner"));
+        assertTrue(readiness.checklist().get("hasAreas"));
+        assertTrue(readiness.checklist().get("hasTicketTypes"));
+        assertTrue(readiness.checklist().get("hasSalePhases"));
+        assertTrue(readiness.checklist().get("areaCapacityValid"));
+        assertTrue(readiness.checklist().get("draftStatus"));
+    }
+
+    @Test
+    @DisplayName("Kiểm tra điều kiện nộp duyệt - Thiếu Banner và Sale Phase (ready = false)")
+    void checkSubmissionReadiness_MissingBannerAndSalePhases() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        UUID venueId = UUID.randomUUID();
+
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setName("Music Festival 2026");
+        event.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        event.setEndTime(Instant.now().plus(7, ChronoUnit.DAYS).plus(4, ChronoUnit.HOURS));
+        event.setVenueId(venueId);
+        event.setStatus(EventStatus.DRAFT);
+
+        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventCategoryRepository.findByIdEventId(eventId)).thenReturn(List.of(new EventCategory(eventId, UUID.randomUUID())));
+        when(eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.BANNER)).thenReturn(0L);
+        when(eventAreaRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketTypeRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketSalePhaseRepository.countByEventId(eventId)).thenReturn(0L);
+
+        var readiness = eventService.checkSubmissionReadiness(eventId, organizerId, false);
+
+        assertFalse(readiness.ready());
+        assertFalse(readiness.checklist().get("hasBanner"));
+        assertFalse(readiness.checklist().get("hasSalePhases"));
+        assertEquals(2, readiness.blockers().size());
+    }
+
+    @Test
+    @DisplayName("Nộp duyệt sự kiện thất bại khi thiếu đợt mở bán")
+    void submitForApproval_FailsWhenMissingSalePhase() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        UUID venueId = UUID.randomUUID();
+
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setName("Music Festival 2026");
+        event.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        event.setEndTime(Instant.now().plus(7, ChronoUnit.DAYS).plus(4, ChronoUnit.HOURS));
+        event.setVenueId(venueId);
+        event.setStatus(EventStatus.DRAFT);
+
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
+        when(eventCategoryRepository.findByIdEventId(eventId)).thenReturn(List.of(new EventCategory(eventId, UUID.randomUUID())));
+        when(eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.BANNER)).thenReturn(1L);
+        when(eventAreaRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketTypeRepository.countByEventId(eventId)).thenReturn(1L);
+        when(ticketSalePhaseRepository.countByEventId(eventId)).thenReturn(0L);
+
+        assertThrows(EventException.class, () ->
+                eventService.submitForApproval(eventId, organizerId, false)
+        );
     }
 
     @Test
@@ -258,7 +378,7 @@ class EventServiceTest {
         event.setId(eventId);
         event.setStatus(EventStatus.PENDING_APPROVAL);
 
-        when(eventRepository.findById(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
         when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EventResponse response = eventService.rejectEvent(eventId, "Ảnh banner không hợp lệ");

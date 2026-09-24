@@ -6,6 +6,7 @@ import com.smartevent.common.security.CurrentUser;
 import com.smartevent.infrastructure.security.UserPrincipal;
 import com.smartevent.modules.ticketing.dto.request.TicketPhaseRuleRequest;
 import com.smartevent.modules.ticketing.dto.request.TicketSalePhaseRequest;
+import com.smartevent.modules.ticketing.dto.request.UpdateSalePhaseStatusRequest;
 import com.smartevent.modules.ticketing.dto.response.TicketPhaseRuleResponse;
 import com.smartevent.modules.ticketing.dto.response.TicketSalePhaseResponse;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
@@ -74,10 +75,10 @@ public class TicketSalePhaseController {
     public ApiResponse<TicketSalePhaseResponse> updateStatus(
             @PathVariable UUID id,
             @CurrentUser UserPrincipal currentUser,
-            @RequestBody SalePhaseStatus newStatus
-            ) {
+            @Valid @RequestBody UpdateSalePhaseStatusRequest request
+    ) {
         boolean isAdmin = checkIsAdmin(currentUser);
-        return ApiResponse.success(ticketSalePhaseService.updateStatus(id, currentUser.getId(), isAdmin, newStatus));
+        return ApiResponse.success(ticketSalePhaseService.updateStatus(id, currentUser.getId(), isAdmin, request.status()));
     }
 
     @DeleteMapping("/api/v1/sale-phases/{id}")

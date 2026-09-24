@@ -59,6 +59,11 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    public com.smartevent.modules.event.dto.response.EventSubmissionReadinessResponse checkSubmissionReadiness(UUID eventId, UUID currentUserId, boolean isAdmin) {
+        return eventLifecycleService.checkSubmissionReadiness(eventId, currentUserId, isAdmin);
+    }
+
+    @Override
     public EventResponse approveEvent(UUID eventId) {
         return eventLifecycleService.approveEvent(eventId);
     }

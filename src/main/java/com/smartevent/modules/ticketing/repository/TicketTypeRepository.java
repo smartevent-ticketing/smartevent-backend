@@ -12,6 +12,8 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, UUID> {
 
     List<TicketType> findByEventId(UUID eventId);
 
+    long countByEventId(UUID eventId);
+
     List<TicketType> findByEventAreaId(UUID eventAreaId);
 
     boolean existsByEventIdAndName(UUID eventId, String name);

@@ -18,6 +18,9 @@ public interface EventAreaRepository extends JpaRepository<EventArea, UUID> {
 
     Optional<EventArea> findByIdAndEventId(UUID id, UUID eventId);
 
+    /*Đếm số khu vực của sự kiện*/
+    long countByEventId(UUID eventId);
+
     /*Chống tạo trùng tên khán đài trong cùng 1 sự kiện*/
     boolean existsByEventIdAndName(UUID eventId, String name);
 
