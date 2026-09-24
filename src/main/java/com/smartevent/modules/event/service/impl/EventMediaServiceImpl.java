@@ -64,6 +64,17 @@ public class EventMediaServiceImpl implements EventMediaService {
                     log.warn("Không thể xóa file MinIO cũ {}: {}", oldBanner.getFileId(), e.getMessage());
                 }
             }
+        } else if (fileType == EventFileType.SEAT_MAP) {
+            // Quy tắc: 1 Ảnh sơ đồ phân khu duy nhất -> Gỡ bỏ sơ đồ cũ nếu có
+            List<EventFile> existingSeatMaps = eventFileRepository.findByEventIdAndFileType(eventId, EventFileType.SEAT_MAP);
+            for (EventFile oldMap : existingSeatMaps) {
+                eventFileRepository.delete(oldMap);
+                try {
+                    storageService.deleteFile(oldMap.getFileId(), currentUserId);
+                } catch (Exception e) {
+                    log.warn("Không thể xóa file MinIO SEAT_MAP cũ {}: {}", oldMap.getFileId(), e.getMessage());
+                }
+            }
         } else if (fileType == EventFileType.GALLERY) {
             // Quy tắc: Tối đa 10 ảnh gallery
             long galleryCount = eventFileRepository.countByEventIdAndFileType(eventId, EventFileType.GALLERY);
