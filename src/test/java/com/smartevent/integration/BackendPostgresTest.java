@@ -26,11 +26,15 @@ import com.smartevent.modules.ordering.repository.*;
 import com.smartevent.modules.ordering.service.*;
 import com.smartevent.modules.ordering.service.impl.*;
 import com.smartevent.modules.outbox.service.impl.OutboxServiceImpl;
+import com.smartevent.modules.outbox.entity.OutboxEvent;
+import com.smartevent.modules.outbox.repository.OutboxEventRepository;
 import com.smartevent.modules.payment.service.*;
 import com.smartevent.modules.payment.service.impl.*;
 import com.smartevent.modules.reservation.dto.request.*;
 import com.smartevent.modules.reservation.service.*;
 import com.smartevent.modules.reservation.service.impl.*;
+import com.smartevent.modules.storage.entity.FileEntity;
+import com.smartevent.modules.storage.repository.FileRepository;
 import com.smartevent.modules.ticket.dto.request.*;
 import com.smartevent.modules.ticket.dto.response.*;
 import com.smartevent.modules.ticket.service.*;
@@ -58,6 +62,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.*;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -66,16 +71,29 @@ import static org.mockito.Mockito.*;
 @Tag("postgres")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BackendPostgresTest {
+    static PostgreSQLContainer postgres;
     AnnotationConfigApplicationContext context;
     JdbcTemplate jdbc;
     TransactionTemplate tx;
 
     @BeforeAll void start() {
-        context = new AnnotationConfigApplicationContext(TestConfiguration.class);
+        if (System.getenv("BACKEND_TEST_JDBC_URL") == null) {
+            postgres = new PostgreSQLContainer("postgres:16-alpine").withDatabaseName("backend_review");
+            postgres.start();
+        }
+        try {
+            context = new AnnotationConfigApplicationContext(TestConfiguration.class);
+        } catch (RuntimeException ex) {
+            if (postgres != null) postgres.stop();
+            throw ex;
+        }
         jdbc = new JdbcTemplate(bean(DataSource.class));
         tx = new TransactionTemplate(bean(PlatformTransactionManager.class));
     }
-    @AfterAll void stop() { if (context != null) context.close(); }
+    @AfterAll void stop() {
+        if (context != null) context.close();
+        if (postgres != null) postgres.stop();
+    }
     @BeforeEach void resetExternalCollaborators() { reset(bean(InvoiceService.class), bean(JwtTokenProvider.class)); }
     <T> T bean(Class<T> type) { return context.getBean(type); }
 
@@ -147,10 +165,13 @@ class BackendPostgresTest {
     CreateEventSetupRequest setupRequest(int standingCapacity) {
         Venue venue = bean(VenueRepository.class).save(new Venue("Setup venue", "Test address", "Test city", null, null, 100));
         Category category = bean(CategoryRepository.class).save(new Category("Setup category", UUID.randomUUID().toString(), null));
+        UUID bannerId = bean(FileRepository.class).save(new FileEntity(null, "review-bucket",
+                "review/banner-" + UUID.randomUUID() + ".png", "banner.png", "image/png", 100L,
+                null, FileVisibility.PUBLIC)).getId();
         return new CreateEventSetupRequest(
                 new CreateEventRequest("Setup " + UUID.randomUUID(), null, venue.getId(),
                         Instant.now().plusSeconds(86400), Instant.now().plusSeconds(90000), "Test city",
-                        List.of(category.getId()), null, null, false, null, null, false, 50),
+                        List.of(category.getId()), bannerId, null, false, null, null, false, 50),
                 List.of(new CreateEventSetupRequest.Tier("Seated", AreaType.SEATED, new BigDecimal("500000"), 26),
                         new CreateEventSetupRequest.Tier("Standing", AreaType.STANDING, new BigDecimal("200000"), standingCapacity)));
     }
@@ -298,6 +319,33 @@ class BackendPostgresTest {
         assertEquals(2,bean(TicketService.class).getTicketsByEvent(f.event(),f.organizer().getId(),false).size());
     }
 
+    @Test void outboxClaimSkipsRowsLockedByAnotherWorker() throws Exception {
+        jdbc.update("DELETE FROM outbox_events");
+        UUID eventId = tx.execute(status -> bean(OutboxEventRepository.class)
+                .save(new OutboxEvent("TEST", UUID.randomUUID(), "ORDER_PAID", "{}")) .getId());
+        CountDownLatch firstLocked = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<List<OutboxEvent>> first = pool.submit(() -> tx.execute(status -> {
+                List<OutboxEvent> rows = bean(OutboxEventRepository.class).lockNextPendingBatch();
+                firstLocked.countDown();
+                try { assertTrue(releaseFirst.await(5, TimeUnit.SECONDS)); }
+                catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new RuntimeException(ex); }
+                return rows;
+            }));
+            assertTrue(firstLocked.await(5, TimeUnit.SECONDS));
+            Future<List<OutboxEvent>> second = pool.submit(() -> tx.execute(status ->
+                    bean(OutboxEventRepository.class).lockNextPendingBatch()));
+            assertTrue(second.get(5, TimeUnit.SECONDS).isEmpty());
+            releaseFirst.countDown();
+            assertEquals(List.of(eventId), first.get(5, TimeUnit.SECONDS).stream().map(OutboxEvent::getId).toList());
+        } finally {
+            releaseFirst.countDown();
+            pool.shutdownNow();
+        }
+    }
+
     @Configuration
     @EnableTransactionManagement(proxyTargetClass=true)
     @EnableJpaRepositories(basePackages="com.smartevent.modules")
@@ -313,10 +361,16 @@ class BackendPostgresTest {
             TicketSalePhaseServiceImpl.class})
     static class TestConfiguration {
         @Bean DataSource dataSource() {
+            if (postgres != null)
+                return new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
             String url=System.getenv("BACKEND_TEST_JDBC_URL");
-            if(url==null || !url.matches("jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/backend_review"))
-                throw new IllegalArgumentException("Use a dedicated loopback PostgreSQL database named backend_review");
-            return new DriverManagerDataSource(url,"postgres",System.getenv().getOrDefault("BACKEND_TEST_DB_PASSWORD","review-only-password"));
+            boolean isolatedLocal=url != null
+                    && url.matches("jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/backend_review");
+            if(!isolatedLocal)
+                throw new IllegalArgumentException("Use Testcontainers or a dedicated loopback backend_review database");
+            String username=System.getenv().getOrDefault("BACKEND_TEST_DB_USERNAME","postgres");
+            String password=System.getenv().getOrDefault("BACKEND_TEST_DB_PASSWORD","");
+            return new DriverManagerDataSource(url,username,password);
         }
         @Bean(initMethod="migrate") Flyway flyway(DataSource source) {
             return Flyway.configure().dataSource(source).locations("classpath:db/migration").load();

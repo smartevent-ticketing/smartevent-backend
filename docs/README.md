@@ -1,6 +1,6 @@
 # Documentation home
 
-Đây là điểm bắt đầu chính thức cho toàn bộ tài liệu của Smart Event Ticketing Platform. Cấu trúc mới ưu tiên câu hỏi người đọc cần trả lời; các tài liệu module chi tiết trước đây vẫn được giữ nguyên để không làm mất lịch sử và không gãy liên kết.
+Đây là điểm bắt đầu cho tài liệu của Smart Event Ticketing Platform. [README backend](../README.md) ghi trạng thái mã nguồn và kết quả kiểm thử gần nhất (26/09/2026). Một số tài liệu Phase 1 và module là snapshot cũ; đối chiếu với mã nguồn khi có khác biệt.
 
 ## Thứ tự ưu tiên nguồn thông tin
 
@@ -27,7 +27,10 @@ Khi tài liệu có khác biệt, sử dụng thứ tự sau:
 
 1. [Local development](02-operations/local-development.md)
 2. [Runbook vận hành và khôi phục](02-operations/reliability-runbook.md)
-3. Swagger UI tại `/swagger-ui.html`
+3. [Gửi QR/email và tải đồng thời](02-operations/notification-reliability.md)
+4. [Bảo mật cấu hình cho người mới](02-operations/security-configuration.md)
+5. [Dockerfile, CI và Testcontainers khi phát triển local](02-operations/docker-ci-testcontainers.md)
+6. Swagger UI tại `/swagger-ui.html` (mặc định yêu cầu Admin)
 
 ### Hiểu lý do thiết kế
 
@@ -49,7 +52,10 @@ docs/
 │   └── architecture-decisions.md
 ├── 02-operations/
 │   ├── local-development.md
-│   └── reliability-runbook.md
+│   ├── reliability-runbook.md
+│   ├── notification-reliability.md
+│   ├── security-configuration.md
+│   └── docker-ci-testcontainers.md
 ├── 03-quality/
 │   ├── test-strategy.md
 │   └── known-limitations.md

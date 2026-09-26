@@ -1,0 +1,17 @@
+.git
+.github
+.review
+.gradle
+build
+src/test
+.idea
+.vscode
+.env
+.env.*
+!.env.example
+*.iml
+out
+docs
+README.md
+HELP.md
+*.log

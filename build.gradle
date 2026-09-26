@@ -65,6 +65,9 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+	// Disposable PostgreSQL for application and transaction integration tests.
+	testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.5'
+	testImplementation 'org.testcontainers:testcontainers-jdbc:2.0.5'
 
 
 
@@ -77,15 +80,10 @@ tasks.named('test') {
 }
 
 tasks.register('postgresTest', Test) {
-    description = 'Service and transaction tests against an isolated PostgreSQL backend_review database.'
+    description = 'Service and transaction tests against disposable PostgreSQL via Testcontainers.'
     group = 'verification'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnitPlatform { includeTags 'postgres' }
     shouldRunAfter test
-    doFirst {
-        if (!System.getenv('BACKEND_TEST_JDBC_URL')) {
-            throw new GradleException('Set BACKEND_TEST_JDBC_URL for the isolated backend_review database; see docs/BACKEND_FIXES_AND_NGROK.md')
-        }
-    }
 }

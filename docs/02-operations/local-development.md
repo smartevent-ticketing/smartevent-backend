@@ -75,7 +75,7 @@ docker compose ps
 | MinIO API | 9000 | Object storage |
 | MinIO Console | 9001 | Quản trị object storage |
 
-Compose hiện chỉ chạy hạ tầng; application Spring Boot vẫn chạy trực tiếp bằng Gradle/IDE.
+Compose của infra chỉ chạy hạ tầng; application Spring Boot có thể chạy trực tiếp bằng Gradle/IDE hoặc dựng image theo [hướng dẫn Dockerfile](docker-ci-testcontainers.md).
 
 ## 4. Chạy test backend
 
@@ -91,7 +91,7 @@ Windows:
 gradlew.bat test
 ```
 
-Test context hiện cần PostgreSQL local và Flyway migration. Cấu hình có thể được override qua `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SPRING_RABBITMQ_HOST` và `SPRING_REDIS_HOST`.
+Test context dùng PostgreSQL tạm qua Testcontainers và Flyway migration; cần Docker Engine đang chạy. Lệnh `postgresTest` chạy thêm các ca giao dịch và concurrency trên container riêng. Test mặc định không đọc `SPRING_DATASOURCE_URL` của ứng dụng nên không đụng database local. Xem [hướng dẫn CI và Testcontainers](docker-ci-testcontainers.md).
 
 Report HTML sau khi chạy: `build/reports/tests/test/index.html`.
 

@@ -33,7 +33,7 @@ Report: `ticketing/build/reports/tests/test/index.html`.
 | Fulfillment | ticket, QR/check-in, invoice, PDF generation |
 | Messaging | outbox service/worker, notification consumer success/failure |
 | Storage | size, extension/MIME, SVG, folder sanitization |
-| Migration | Spring context và Flyway history trên PostgreSQL local |
+| Migration | Spring context và Flyway history trên PostgreSQL Testcontainers |
 
 ## Test pyramid mục tiêu
 
@@ -93,4 +93,4 @@ Không dùng chỉ số “request đã gửi” làm kết luận. Kết quả 
 
 ## Tính lặp lại của môi trường test
 
-Test profile hiện dùng PostgreSQL local và có default credential. Điều này làm suite phụ thuộc máy và có rủi ro lộ secret giả/thật. Mục tiêu tiếp theo là Testcontainers + dynamic properties, không hard-code password, và tách unit test khỏi dependency hạ tầng.
+Test profile dùng PostgreSQL 16 tạm qua Testcontainers; `test` và `postgresTest` chạy riêng. Docker Engine phải hoạt động khi chạy hai task. Các bài unit thuần có thể được chạy chọn lọc mà không cần Docker; việc tách thành task unit riêng vẫn là cải tiến tiếp theo.

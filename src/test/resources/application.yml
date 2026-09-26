@@ -2,10 +2,11 @@ spring:
   application:
     name: smart-event-ticketing-test
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smart_event}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:tdhuy0909}
-    driver-class-name: org.postgresql.Driver
+    # Tests must never inherit the developer's application database variables.
+    url: jdbc:tc:postgresql:16-alpine:///smart_event_test
+    username: test
+    password: test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:
       ddl-auto: validate

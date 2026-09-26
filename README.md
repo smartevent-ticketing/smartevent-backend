@@ -1,113 +1,147 @@
-# Smart Event Ticketing Platform — Backend
+# Smart Event Ticketing — Backend
 
-Backend bán vé sự kiện được xây dựng theo kiến trúc modular monolith bằng Java 17 và Spring Boot. Đây là **đồ án môn học**; Phase 1 tập trung chứng minh luồng bán vé end-to-end, tính nhất quán dữ liệu và xử lý tranh chấp ở các điểm quan trọng.
+Backend cho nền tảng bán vé sự kiện Smart Event. Ứng dụng dùng Java 17, Spring Boot 4, PostgreSQL và kiến trúc modular monolith. Đây là dự án đồ án/demo: luồng bán vé cốt lõi đã có, còn các mục trong [Phần cần hoàn thiện](#phần-cần-hoàn-thiện) phải được xử lý trước khi vận hành thực tế.
 
-## Trạng thái hiện tại
+## Trạng thái được kiểm tra
 
-> Cập nhật kiểm tra ngày 10/09/2026: xem [sửa lỗi, kiểm thử PostgreSQL và ngrok](docs/BACKEND_FIXES_AND_NGROK.md). Các con số snapshot tháng 8 bên dưới là lịch sử, không đại diện cho mã hiện tại.
+Kiểm tra mã nguồn ngày **26/09/2026**:
 
-**Phase 1 – Core Ticketing: hoàn thành ở mức đồ án.**
+- Có **20 Flyway migration** (`V1`–`V20`), gồm lịch sử Admin xử lý đối soát và inbox chống xử lý lặp email vé.
+- `test` chạy **188/188** và `postgresTest` chạy **13/13** trên PostgreSQL 16 do Testcontainers tạo, 0 lỗi, 0 bỏ qua. Chưa kiểm thử tích hợp với RabbitMQ, MinIO, SMTP hoặc VNPay thật.
 
-Snapshot được đối chiếu ngày 23/08/2026:
+| Phân hệ | Hiện trạng trong code |
+| --- | --- |
+| Identity | Đăng ký, đăng nhập, JWT, refresh/logout, RBAC; login được gắn giới hạn 5 lần/phút dựa trên Redis. |
+| Sự kiện | Category, venue, event, khu vực, ghế, media; tạo cấu hình, kiểm tra điều kiện gửi duyệt, duyệt/từ chối/hủy. |
+| Bán vé | Loại vé, đợt bán, tồn kho, giữ chỗ có hạn, tạo đơn với giá được chốt ở server. |
+| Thanh toán | Tạo URL và xử lý Return/IPN cho **VNPay Sandbox**. Các enum/tiện ích cũ cho phương thức khác chưa tạo giao dịch được. |
+| Sau thanh toán | Phát hành vé, QR, chuyển vé, check-in; gửi email vé có PNG QR nội tuyến và đính kèm, cùng PDF xác nhận đơn hàng nội bộ qua Outbox/RabbitMQ. |
+| Đối soát | Admin xem, cập nhật trạng thái xử lý hoàn tiền thủ công, ghi chú, bằng chứng và lịch sử thao tác; trang `/admin/refund-reviews` ở web hỗ trợ thao tác này. Backend không gọi refund tự động. |
+| Lưu trữ | Tải file lên MinIO, metadata PostgreSQL, URL có thời hạn cho file riêng tư. |
 
-- 19 REST controller, 89 endpoint mapping.
-- 12 Flyway migration (`V1` đến `V12`).
-- 146/146 test pass, không failure/error/skipped theo báo cáo Gradle gần nhất.
-- Luồng chính: đăng nhập → tạo/publish sự kiện → cấu hình vé → giữ chỗ → tạo đơn → thanh toán sandbox → phát hành vé/QR → hóa đơn PDF/email → check-in.
+Luồng chính: đăng nhập → tạo và duyệt sự kiện → cấu hình vé → giữ chỗ → tạo đơn → thanh toán VNPay Sandbox → phát hành vé/QR và PDF xác nhận → check-in. Giao dịch thanh toán đến muộn hoặc sự kiện bị hủy được đưa vào danh sách **cần đối soát** để Admin xử lý và cập nhật kết quả thủ công.
 
-Kết luận này **không đồng nghĩa production-ready**. Các việc như publisher confirms, consumer idempotency đầy đủ, kiểm tra nội dung file bằng magic bytes, load test, Testcontainers, rate limiting, CI/CD và backup/restore còn là bước nâng cấp tiếp theo.
+## Công nghệ và cấu trúc
 
-## Kiến trúc
+| Thành phần | Công nghệ / vai trò |
+| --- | --- |
+| API | Java 17, Spring Boot 4.0.7, Spring WebMVC, Spring Security, OpenAPI |
+| Dữ liệu | PostgreSQL 16, Spring Data JPA, Flyway |
+| Hỗ trợ | Redis 7, RabbitMQ, MinIO, Spring Mail |
+| Tài liệu | OpenPDF cho PDF, ZXing cho QR |
+| Build và test | Gradle Wrapper, JUnit 5, Mockito, PostgreSQL Testcontainers, GitHub Actions |
 
-```mermaid
-flowchart LR
-    Client[Web / Mobile / Scanner] --> API[Spring Boot REST API]
-    API --> DB[(PostgreSQL)]
-    API --> Redis[(Redis)]
-    API --> MinIO[(MinIO)]
-    API --> Outbox[(outbox_events)]
-    Outbox --> Publisher[Outbox publisher]
-    Publisher --> Rabbit[RabbitMQ]
-    Rabbit --> Consumer[Notification consumer]
-    Consumer --> SMTP[SMTP]
-```
+Mã chính nằm trong `src/main/java/com/smartevent`: `modules/` chứa nghiệp vụ; `common/`, `config/` và `infrastructure/` chứa thành phần dùng chung. Migration ở `src/main/resources/db/migration`. PostgreSQL là nguồn dữ liệu chuẩn; Redis hỗ trợ giới hạn truy cập và bộ đếm; Outbox chuyển thông báo sang RabbitMQ để gửi mail bất đồng bộ.
 
-PostgreSQL là nguồn dữ liệu chuẩn. Redis hỗ trợ counter/cache, MinIO lưu file, còn RabbitMQ tách việc gửi thông báo khỏi transaction nghiệp vụ. Transactional Outbox giảm rủi ro dual-write; delivery hiện có semantics **at-least-once**, vì vậy duplicate vẫn phải được tính đến.
+Hạ tầng local nằm ở repository [smartevent-infra](https://github.com/smartevent-ticketing/smartevent-infra); giao diện ở [smartevent-web](https://github.com/smartevent-ticketing/smartevent-web). Docker Compose của infra chạy dịch vụ phụ trợ; backend có [Dockerfile và hướng dẫn chạy image riêng](docs/02-operations/docker-ci-testcontainers.md). Flyway của backend quản lý schema database.
 
-Các cơ chế quan trọng đã triển khai:
+## Chạy trên máy local
 
-- Atomic compare-and-set cho `AVAILABLE → HELD`, `PENDING → CONFIRMED/EXPIRED` và `ISSUED → USED`.
-- Worker giải phóng reservation/order hết hạn mỗi 30 giây.
-- Late payment được ghi nhận `Payment.SUCCESS`, hủy order và đưa sang đối soát hoàn tiền thay vì rollback webhook.
-- Hóa đơn PDF và email chạy bất đồng bộ qua Outbox/RabbitMQ; retry hữu hạn và DLQ cho lỗi consumer.
-- JWT stateless, RBAC, kiểm tra quyền trên tài nguyên sự kiện và chặn truy cập công khai event chưa publish.
+### Yêu cầu
 
-Xem [tổng quan kiến trúc](docs/01-architecture/system-architecture.md) và [các luồng giao dịch trọng yếu](docs/01-architecture/critical-flows.md).
+- JDK 17 và Docker Desktop/Docker Engine với Compose.
+- Clone `smartevent-backend` và `smartevent-infra` cạnh nhau.
+- Các cổng mặc định còn trống: `8080`, `5432`, `6379`, `5672`, `15672`, `9000`, `9001`.
 
-## Công nghệ
+### 1. Khởi động hạ tầng
 
-| Nhóm | Công nghệ |
-|---|---|
-| Runtime | Java 17, Spring Boot 4.0.7, Gradle |
-| API & security | Spring WebMVC, Spring Security, JWT, OpenAPI/Swagger |
-| Data | PostgreSQL 16, Spring Data JPA, Flyway |
-| Cache/counter | Redis 7 |
-| Messaging | RabbitMQ, Transactional Outbox, retry/DLQ |
-| Storage | MinIO, presigned URL |
-| Document/media | OpenPDF, ZXing, Spring Mail |
-| Testing | JUnit 5, Mockito, Spring test starters |
+Trong thư mục `smartevent-infra`, tạo `.env` từ `.env.example` nếu chưa có, thay các mật khẩu mẫu rồi khởi động:
 
-## Các repository
-
-- Backend (repo này): `smartevent-backend`
-- Frontend: [smartevent-web](https://github.com/smartevent-ticketing/smartevent-web)
-- Hạ tầng local: [smartevent-infra](https://github.com/smartevent-ticketing/smartevent-infra)
-
-Mỗi repository có lịch sử, pipeline và vòng đời phát hành độc lập. PostgreSQL, Redis, RabbitMQ và MinIO được quản lý tại repository infra; Flyway migration vẫn thuộc backend và là nguồn chuẩn duy nhất của database schema.
-
-## Chạy cục bộ
-
-Yêu cầu: JDK 17 và Docker Desktop/Docker Compose.
-
-Khởi động hạ tầng từ repository infra:
-
-```bash
-git clone https://github.com/smartevent-ticketing/smartevent-infra.git
-cd smartevent-infra
-cp .env.example .env
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 docker compose up -d
+docker compose ps
 ```
 
-Sau đó, tại thư mục gốc của repository backend:
+### 2. Cấu hình backend
 
-```bash
-cp .env.example .env
-./gradlew test
-./gradlew bootRun
+Trong thư mục `smartevent-backend`, tạo `.env` từ `.env.example` nếu chưa có. Đối chiếu database, RabbitMQ và MinIO với `.env` của infra. **Phải tạo `JWT_SECRET` Base64 từ ít nhất 32 byte ngẫu nhiên**; mã merchant và hash secret VNPay để trống cho tới khi nhận từ Sandbox. Xem [hướng dẫn bảo mật cấu hình](docs/02-operations/security-configuration.md).
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Trên Windows, dùng `copy`, `gradlew.bat` và `docker compose` tương ứng. File `.env` của infra được Compose tự đọc; Spring Boot chạy từ Gradle vẫn cần nhận biến môi trường qua shell hoặc Run/Debug Configuration của IDE.
+Spring Boot/Gradle **không tự đọc** file `.env`. Có thể nạp file dạng `KEY=value` vào process PowerShell hiện tại rồi chạy backend trong cùng terminal:
 
-Sau khi ứng dụng chạy:
+```powershell
+Get-Content .env |
+  Where-Object { $_ -and -not $_.StartsWith('#') } |
+  ForEach-Object {
+    $name, $value = $_.Split('=', 2)
+    [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+  }
+.\gradlew.bat bootRun
+```
 
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
+Nếu dùng IDE, khai báo các biến tương ứng trong Run Configuration. Trên macOS/Linux dùng `./gradlew` và nạp biến môi trường bằng công cụ shell phù hợp. Không commit `.env` hoặc dùng lại secret của môi trường thật.
+
+Để gửi mail thật, cấu hình `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`. Nếu `APP_MAIL_ENABLED=false` hoặc thiếu sender, giao thư thất bại và đi qua retry/DLQ; hệ thống không ghi `SENT` giả. `APP_DOCS_PUBLIC=true` chỉ phù hợp local/demo; mặc định Swagger yêu cầu Admin.
+
+### 3. Kiểm tra
+
+Khi Docker Engine đang chạy:
+
+```powershell
+.\gradlew.bat test postgresTest
+```
+
+- API: `http://localhost:8080/api/v1`
+- Swagger UI: `http://localhost:8080/swagger-ui.html` (public khi `APP_DOCS_PUBLIC=true`)
 - Health: `http://localhost:8080/actuator/health`
-- RabbitMQ UI: `http://localhost:15672`
-- MinIO Console: `http://localhost:9001`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- Báo cáo test: `build/reports/tests/test/index.html`
 
-Hướng dẫn chi tiết: [Local development](docs/02-operations/local-development.md).
+Test mặc định có bài kiểm tra khởi động ứng dụng và Flyway. Cả `test` và `postgresTest` dùng PostgreSQL tạm qua Testcontainers, không dùng database ứng dụng local. Xem [hướng dẫn Dockerfile, CI và Testcontainers](docs/02-operations/docker-ci-testcontainers.md). Tài liệu `BACKEND_FIXES_AND_NGROK.md` ghi lại cách test cũ bằng `backend_review` local.
 
-## Tài liệu
+### 4. Demo thanh toán VNPay
 
-Điểm bắt đầu duy nhất là [docs/README.md](docs/README.md). Tại đây có các lộ trình đọc theo nhu cầu:
+`VNPAY_RETURN_URL` là nơi trình duyệt quay về; `VNPAY_IPN_URL` là webhook từ VNPay tới backend. IPN cần một địa chỉ HTTPS mà VNPay truy cập được và phải được cấu hình ở phía merchant. Backend kiểm tra chữ ký, mã merchant, số tiền và trạng thái trước khi xác nhận giao dịch. Xem [hướng dẫn demo qua ngrok](docs/BACKEND_FIXES_AND_NGROK.md#2-cài-ngrok-và-lấy-địa-chỉ-https).
 
-- đánh giá Phase 1;
-- hiểu kiến trúc và các quyết định kỹ thuật;
-- chạy/demo hệ thống;
-- kiểm thử, bảo mật và theo dõi rủi ro;
-- tra cứu tài liệu chi tiết của từng module.
+## API chính
 
-Tài liệu đặc tả gốc và các hướng dẫn module cũ được giữ nguyên như nguồn tham khảo; tài liệu mới trong `00-overview`, `01-architecture`, `02-operations` và `03-quality` là lớp điều hướng và trạng thái hiện hành.
+| Nghiệp vụ | Endpoint tiêu biểu |
+| --- | --- |
+| Tài khoản | `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me` |
+| Sự kiện | `GET /api/v1/events`, `POST /api/v1/events/setup`, `POST /api/v1/events/{id}/submit` |
+| Giữ vé và đơn hàng | `POST /api/v1/reservations`, `POST /api/v1/orders` |
+| Thanh toán VNPay | `POST /api/v1/payments/create-url`, `GET /api/v1/payments/vnpay/ipn` |
+| Vé và check-in | `GET /api/v1/tickets/my-tickets`, `POST /api/v1/checkin/scan` |
+| Đối soát | `GET /api/v1/admin/payment-refund-reviews?status=REQUIRED`, `PATCH /api/v1/admin/payment-refund-reviews/{id}`, `GET /api/v1/admin/payment-refund-reviews/{id}/history` |
+
+Chi tiết request, response và yêu cầu xác thực xem tại Swagger UI. Các endpoint quản lý cần JWT và vai trò phù hợp; IPN dùng chữ ký của VNPay. Khi cập nhật đối soát, Admin chọn `IN_REVIEW`, `REFUNDED_CONFIRMED` hoặc `CLOSED_NO_REFUND`, luôn ghi `note`; `REFUNDED_CONFIRMED` yêu cầu `evidenceReference` của khoản hoàn đã đối chiếu. Không có lệnh gọi refund từ API này.
+
+Ví dụ cập nhật sau khi đối chiếu giao dịch hoàn thực tế:
+
+```json
+{"status":"REFUNDED_CONFIRMED","note":"Đã kiểm tra sao kê và xác nhận hoàn tiền","evidenceReference":"Mã giao dịch từ VNPay hoặc ngân hàng"}
+```
+
+## Phần cần hoàn thiện
+
+Các mục sau được đối chiếu trực tiếp với mã hiện tại. Luồng chính dùng được cho demo, nhưng chưa có đủ cơ sở để gọi là sẵn sàng cho production.
+
+| Ưu tiên | Hạng mục | Hiện trạng / việc còn thiếu |
+| --- | --- | --- |
+| Cao | SMTP không thể exactly-once | Inbox và khóa delivery ngăn xử lý lặp đã commit, nhưng nếu SMTP nhận thư rồi process chết trước khi DB commit, email có thể gửi lại. Cần theo dõi, đối soát và chấp nhận semantics at-least-once. |
+| Cao | Kiểm thử tải và hạ tầng | Chưa đo 100 giao dịch đồng thời với RabbitMQ/SMTP thật. Consumer email còn giữ kết nối database khi chờ SMTP; cần đo pool, backlog, latency, lỗi SMTP và DLQ trên môi trường tách biệt trước khi cam kết sức chứa. |
+| Trung bình | Vận hành thông báo | Outbox thử lại tối đa năm lần, Rabbit consumer tối đa ba lần rồi vào DLQ; chưa có job tự động phát lại DLQ hoặc cảnh báo backlog. Admin cần kiểm tra và xử lý. |
+| Trung bình | Thông báo hồ sơ hoàn tiền | Admin đã có trang xử lý và lịch sử; khách mua vé chưa nhận email/in-app khi Admin đổi trạng thái hồ sơ. Nếu bổ sung, phát sự kiện Outbox sau quyết định đã xác minh. |
+| Trung bình | Bảo mật còn mở | Rate limit login tin `X-Forwarded-For` và cho qua khi Redis lỗi; QR token đang lưu trực tiếp trong database. Cần proxy tin cậy, băm token có lộ trình tương thích và kiểm thử HTTP. |
+| Theo kế hoạch | Cổng thanh toán khác | Hiện chỉ hỗ trợ VNPay. VietQR có thể cân nhắc sau khi luồng hiện tại được đo và vận hành ổn định; các enum/tiện ích cũ chưa phải tính năng hoạt động. |
+| Trung bình | Kiểm tra file | Upload dựa vào extension và MIME do client cung cấp; checksum để `null`, file được đánh `CLEAN` ngay. Chưa có kiểm tra nội dung thực, quét malware hoặc đối soát object MinIO với metadata PostgreSQL. |
+| Trung bình | Triển khai và tài liệu tài chính | Đã có Dockerfile, CI kiểm thử và PostgreSQL Testcontainers; các bộ test đã chạy local, CI trên GitHub chưa được kích hoạt. Chưa kiểm thử end-to-end với dịch vụ ngoài. PDF xác nhận được sinh nội bộ; chưa tích hợp ký số/nhà cung cấp hóa đơn thuế. |
+
+Ưu tiên tiếp theo: kiểm thử tải và sự cố RabbitMQ/SMTP trên môi trường riêng, thêm cảnh báo backlog/DLQ, rồi hoàn thiện các mục bảo mật và kiểm tra file còn mở.
+
+## Tài liệu liên quan
+
+- [Trang tài liệu backend](docs/README.md) — sơ đồ kiến trúc, các luồng nghiệp vụ và hướng dẫn module.
+- [Các sửa lỗi và kiểm thử PostgreSQL](docs/BACKEND_FIXES_AND_NGROK.md) — mốc 11/09/2026; số lượng test ở tài liệu này là lịch sử.
+- [Runbook vận hành](docs/02-operations/reliability-runbook.md).
+- [Thông báo khi 100 người mua đồng thời](docs/02-operations/notification-reliability.md).
+- [Hướng dẫn bảo mật cấu hình](docs/02-operations/security-configuration.md).
+- [Dockerfile, CI và Testcontainers cho local](docs/02-operations/docker-ci-testcontainers.md).
+- [Đặc tả và tài liệu Phase 1](docs/00-overview/phase-1-status.md) — mốc 23/08/2026; trạng thái cập nhật nằm trong README này.
 
 ## Tác giả
 

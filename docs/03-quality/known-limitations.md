@@ -1,5 +1,7 @@
 # Giới hạn và backlog kỹ thuật
 
+> Tài liệu này là snapshot lịch sử trước đợt bổ sung publisher confirm, inbox, Dockerfile, CI và Testcontainers ngày 26/09/2026. Xem [README backend](../../README.md#phần-cần-hoàn-thiện) để biết giới hạn hiện tại.
+
 Danh sách này cố ý công tâm: Phase 1 đã hoàn thành ở mức đồ án nhưng vẫn còn khoảng cách rõ ràng tới production. Ưu tiên được đánh theo tác động, không phải để phủ nhận kết quả hiện có.
 
 ## P1 — Nên xử lý trước khi gọi là production-ready
