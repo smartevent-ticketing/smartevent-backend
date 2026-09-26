@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 @Component
 public class JwtTokenProvider {
 
-    private final String jwtSecret;
+    private final SecretKey signingKey;
     private final long accessTokenExpirationMs;
     private final long refreshTokenExpirationMs;
 
@@ -31,29 +31,25 @@ public class JwtTokenProvider {
             @Value("${app.jwt.access-token-expiration-ms:900000}") long accessTokenExpirationMs,
             @Value("${app.jwt.refresh-token-expiration-ms:604800000}") long refreshTokenExpirationMs
     ) {
-        this.jwtSecret = jwtSecret;
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalArgumentException("JWT_SECRET must be configured");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(jwtSecret);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("JWT_SECRET must be Base64 encoded", ex);
+        }
+        if (keyBytes.length < 32) {
+            throw new IllegalArgumentException("JWT_SECRET must contain at least 32 random bytes");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
         this.accessTokenExpirationMs = accessTokenExpirationMs;
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
     }
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes;
-        try {
-            // Thử giải mã Base64 trước
-            keyBytes = Decoders.BASE64.decode(jwtSecret);
-        } catch (Exception e) {
-            // Nếu không phải Base64, lấy raw bytes UTF-8
-            keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-        }
-
-        // Đảm bảo khóa đủ 256 bits (32 bytes) cho HS256
-        if (keyBytes.length < 32) {
-            byte[] paddedKey = new byte[32];
-            System.arraycopy(keyBytes, 0, paddedKey, 0, keyBytes.length);
-            keyBytes = paddedKey;
-        }
-
-        return Keys.hmacShaKeyFor(keyBytes);
+        return signingKey;
     }
 
     public String generateAccessToken(UserPrincipal userPrincipal) {

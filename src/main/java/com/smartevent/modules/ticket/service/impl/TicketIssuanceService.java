@@ -85,7 +85,7 @@ public class TicketIssuanceService {
                 Ticket savedTicket = ticketRepository.save(ticket);
 
                 // Sinh mã Token QR ban đầu và lưu vào DB
-                String qrTokenHash = TicketSecurityUtils.generateSecureQrToken(savedTicket.getId(), order.getUserId());
+                String qrTokenHash = TicketSecurityUtils.generateSecureQrToken(savedTicket.getId());
                 TicketQrToken qrToken = new TicketQrToken(savedTicket.getId(), qrTokenHash);
                 qrTokenRepository.save(qrToken);
 

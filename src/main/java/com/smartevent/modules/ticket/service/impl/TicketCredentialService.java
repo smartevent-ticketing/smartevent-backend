@@ -32,6 +32,6 @@ public class TicketCredentialService {
         ticket.setTicketCode(code);
         ticketRepository.save(ticket);
         qrTokenRepository.save(new TicketQrToken(ticket.getId(),
-                TicketSecurityUtils.generateSecureQrToken(ticket.getId(), ticket.getCurrentOwnerUserId())));
+                TicketSecurityUtils.generateSecureQrToken(ticket.getId())));
     }
 }

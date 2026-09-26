@@ -33,10 +33,15 @@ spring:
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
-    username: ${SPRING_RABBITMQ_USERNAME:guest}
-    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    username: ${SPRING_RABBITMQ_USERNAME}
+    password: ${SPRING_RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
     listener:
       simple:
+        concurrency: ${APP_NOTIFICATION_CONSUMERS:1}
+        max-concurrency: ${APP_NOTIFICATION_MAX_CONSUMERS:2}
+        prefetch: ${APP_NOTIFICATION_PREFETCH:5}
         retry:
           enabled: true
           initial-interval: 2000ms
@@ -47,8 +52,8 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:smartevent.ticketing@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:your_app_password}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     test-connection: false
     properties:
       mail:
@@ -76,40 +81,22 @@ management:
 
 app:
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+  docs:
+    public: ${APP_DOCS_PUBLIC:false}
   payment:
     vnpay:
-      tmn-code: ${VNPAY_TMN_CODE:DEMOVNPAY}
-      hash-secret: ${VNPAY_HASH_SECRET:SECRETKEY123456789}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      hash-secret: ${VNPAY_HASH_SECRET:}
       pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
       return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/v1/payments/vnpay/return}
       ipn-url: ${VNPAY_IPN_URL:http://localhost:8080/api/v1/payments/vnpay/ipn}
       version: "2.1.0"
       command: "pay"
-    momo:
-      partner-code: ${MOMO_PARTNER_CODE:MOMO}
-      access-key: ${MOMO_ACCESS_KEY:F8BBA842ECF85}
-      secret-key: ${MOMO_SECRET_KEY:K951B6PE1waDMi640xX0huZDAm&8fStatic}
-      endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn/v2/gateway/api/create}
-      return-url: ${MOMO_RETURN_URL:http://localhost:8080/api/v1/payments/momo/return}
-      ipn-url: ${MOMO_IPN_URL:http://localhost:8080/api/v1/payments/momo/ipn}
-    zalopay:
-      app-id: ${ZALOPAY_APP_ID:2553}
-      key1: ${ZALOPAY_KEY1:PcY4iZIKrnbtLENg5BQvdEwDuKjvMwdu}
-      key2: ${ZALOPAY_KEY2:kLtgPl8HHhfvMuY2tcKbgFn9pInnFUba}
-      endpoint: ${ZALOPAY_ENDPOINT:https://sb-openapi.zalopay.vn/v2/create}
-      callback-url: ${ZALOPAY_CALLBACK_URL:http://localhost:8080/api/v1/payments/zalopay/callback}
-    paypal:
-      client-id: ${PAYPAL_CLIENT_ID:YOUR_PAYPAL_CLIENT_ID}
-      secret-key: ${PAYPAL_SECRET_KEY:YOUR_PAYPAL_SECRET_KEY}
-      base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
-      mode: sandbox
-      return-url: ${PAYPAL_RETURN_URL:http://localhost:8080/api/v1/payments/paypal/success}
-      cancel-url: ${PAYPAL_CANCEL_URL:http://localhost:8080/api/v1/payments/paypal/cancel}
   storage:
     minio:
       endpoint: ${APP_MINIO_ENDPOINT:http://localhost:9000}
-      access-key: ${APP_MINIO_ACCESS_KEY:minioadmin}
-      secret-key: ${APP_MINIO_SECRET_KEY:minioadmin}
+      access-key: ${APP_MINIO_ACCESS_KEY}
+      secret-key: ${APP_MINIO_SECRET_KEY}
       bucket: ${APP_MINIO_BUCKET:smart-event}
   date:
     default-format: "yyyy-MM-dd HH:mm:ss"

@@ -20,7 +20,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("🎟️ Smart Event Ticketing Platform API Documentation")
-                        .description("Tài liệu đặc tả toàn bộ 83 REST API Endpoints của hệ thống Smart Event Ticketing Platform: Định danh, Sự kiện, Sơ đồ ghế, Tồn kho, Giữ chỗ 10p, Thanh toán VNPay/MoMo, Xuất vé QR, Hóa đơn VAT và Outbox RabbitMQ.")
+                        .description("API Smart Event Ticketing: tài khoản, sự kiện, tồn kho, giữ vé, thanh toán VNPay, vé QR, PDF hóa đơn và thông báo bất đồng bộ.")
                         .version("1.0.0")
                         .contact(new Contact()
                                 .name("Trịnh Đăng Huy - Backend Engineering Lead")
