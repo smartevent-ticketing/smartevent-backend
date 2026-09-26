@@ -37,9 +37,12 @@ public class InvoiceDeliveryService {
         return delivery;
     }
 
+    @Transactional(noRollbackFor = RuntimeException.class)
     public void deliver(InvoiceCreatedEvent event) {
-        if (event.deliveryId() != null && invoiceDeliveryRepository.findById(event.deliveryId())
-                .map(delivery -> delivery.getStatus() == DeliveryStatus.SENT).orElse(false)) return;
+        InvoiceDelivery lockedDelivery = event.deliveryId() == null ? null
+                : invoiceDeliveryRepository.findByIdForUpdate(event.deliveryId())
+                    .orElseThrow(() -> new InvoiceException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy lần gửi hóa đơn"));
+        if (lockedDelivery != null && lockedDelivery.getStatus() == DeliveryStatus.SENT) return;
         try {
             log.info("Notification Consumer: Nhận sự kiện hóa đơn xuất: {}", event.invoiceCode());
 
@@ -58,13 +61,11 @@ public class InvoiceDeliveryService {
             );
 
             // 3. Cập nhật chính xác bản ghi InvoiceDelivery tương ứng -> SENT
-            if (event.deliveryId() != null) {
-                invoiceDeliveryRepository.findById(event.deliveryId()).ifPresent(d -> {
-                    d.setStatus(DeliveryStatus.SENT);
-                    d.setSentAt(java.time.Instant.now());
-                    d.setProviderMessageId("SENT-" + java.util.UUID.randomUUID().toString().substring(0, 8));
-                    invoiceDeliveryRepository.save(d);
-                });
+            if (lockedDelivery != null) {
+                lockedDelivery.setStatus(DeliveryStatus.SENT);
+                lockedDelivery.setSentAt(java.time.Instant.now());
+                lockedDelivery.setProviderMessageId("SENT-" + java.util.UUID.randomUUID().toString().substring(0, 8));
+                invoiceDeliveryRepository.save(lockedDelivery);
             } else {
                 var deliveries = invoiceDeliveryRepository.findByInvoiceId(event.invoiceId());
                 for (var d : deliveries) {
@@ -79,13 +80,11 @@ public class InvoiceDeliveryService {
         } catch (Exception ex) {
             log.error("Lỗi khi xử lý gửi email InvoiceCreatedEvent: {}", ex.getMessage(), ex);
             if (event != null) {
-                if (event.deliveryId() != null) {
-                    invoiceDeliveryRepository.findById(event.deliveryId()).ifPresent(d -> {
-                        d.setStatus(DeliveryStatus.FAILED);
-                        String errMsg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
-                        d.setProviderMessageId("ERR: " + errMsg.substring(0, Math.min(errMsg.length(), 200)));
-                        invoiceDeliveryRepository.save(d);
-                    });
+                if (lockedDelivery != null) {
+                    lockedDelivery.setStatus(DeliveryStatus.FAILED);
+                    String errMsg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                    lockedDelivery.setProviderMessageId("ERR: " + errMsg.substring(0, Math.min(errMsg.length(), 200)));
+                    invoiceDeliveryRepository.save(lockedDelivery);
                 } else {
                     var deliveries = invoiceDeliveryRepository.findByInvoiceId(event.invoiceId());
                     for (var d : deliveries) {

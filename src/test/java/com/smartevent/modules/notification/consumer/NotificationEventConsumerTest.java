@@ -35,6 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 class NotificationEventConsumerTest {
 
     @Mock private EmailService emailService;
+    @Mock private TicketEmailDeliveryService ticketEmailDeliveryService;
     @Mock private ObjectMapper objectMapper;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private InvoiceItemRepository invoiceItemRepository;
@@ -49,7 +50,7 @@ class NotificationEventConsumerTest {
     @BeforeEach
     void composeServices() {
         consumer = new NotificationEventConsumer(
-                emailService,
+                ticketEmailDeliveryService,
                 objectMapper,
                 new InvoiceDeliveryService(
                         invoiceRepository,
@@ -75,9 +76,7 @@ class NotificationEventConsumerTest {
 
         consumer.handleTicketIssuedEvent("payload");
 
-        verify(emailService, times(1)).sendTicketEmail(
-                eq("user@gmail.com"), eq("TCK-12345"), eq("Concert Test"), eq("Ghế A-1"), eq("data:image/png;base64,sample")
-        );
+        verify(ticketEmailDeliveryService).deliver(event);
     }
 
     @Test
@@ -110,7 +109,7 @@ class NotificationEventConsumerTest {
         when(invoiceItemRepository.findByInvoiceId(invoiceId)).thenReturn(List.of());
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(pdfInvoiceGenerator.generateInvoicePdf(eq(invoice), any(), eq("Nguyen Van A"), eq("buyer@gmail.com"))).thenReturn(fakePdf);
-        when(invoiceDeliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(invoiceDeliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
 
         consumer.handleInvoiceCreatedEvent("payload");
 
@@ -145,7 +144,7 @@ class NotificationEventConsumerTest {
 
         when(objectMapper.readValue(any(String.class), eq(InvoiceCreatedEvent.class))).thenReturn(event);
         when(invoiceRepository.findById(invoiceId)).thenReturn(Optional.of(invoice));
-        when(invoiceDeliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(invoiceDeliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
         doThrow(new RuntimeException("SMTP Connection Timeout")).when(emailService)
                 .sendInvoiceEmailWithPdf(any(), any(), any(), any(), any());
 

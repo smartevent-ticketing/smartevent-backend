@@ -1,7 +1,6 @@
 package com.smartevent.modules.notification.consumer;
 
 import com.smartevent.config.RabbitMQConfig;
-import com.smartevent.infrastructure.mail.EmailService;
 import com.smartevent.modules.invoice.dto.event.InvoiceCreatedEvent;
 import com.smartevent.modules.invoice.service.InvoiceDeliveryService;
 import com.smartevent.modules.ordering.dto.event.OrderPaidEvent;
@@ -17,7 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class NotificationEventConsumer {
 
-    private final EmailService emailService;
+    private final TicketEmailDeliveryService ticketEmailDeliveryService;
     private final ObjectMapper objectMapper;
     private final InvoiceDeliveryService invoiceDeliveryService;
 
@@ -27,13 +26,7 @@ public class NotificationEventConsumer {
             TicketIssuedEvent event = objectMapper.readValue(messagePayload, TicketIssuedEvent.class);
             log.info("Notification Consumer: Nhận sự kiện vé phát hành: {}", event.ticketCode());
 
-            emailService.sendTicketEmail(
-                    event.ownerEmail(),
-                    event.ticketCode(),
-                    event.eventName(),
-                    event.seatCode(),
-                    event.qrCodeBase64()
-            );
+            ticketEmailDeliveryService.deliver(event);
         } catch (Exception ex) {
             log.error("Lỗi khi xử lý sự kiện TicketIssuedEvent: {}", ex.getMessage(), ex);
             throw new RuntimeException(ex);
