@@ -88,6 +88,8 @@ public class RabbitMQConfig {
     // 5. RabbitTemplate
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
-        return new RabbitTemplate(connectionFactory);
+        RabbitTemplate template = new RabbitTemplate(connectionFactory);
+        template.setMandatory(true);
+        return template;
     }
 }

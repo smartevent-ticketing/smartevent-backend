@@ -33,7 +33,7 @@ class OutboxPublisherWorkerTest {
         OutboxEvent event = new OutboxEvent("ORDER", UUID.randomUUID(), "ORDER_PAID", "{\"test\":\"json\"}");
         event.setId(UUID.randomUUID());
 
-        when(outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+        when(outboxEventRepository.lockNextPendingBatch())
                 .thenReturn(List.of(event));
 
         worker.publishPendingEvents();
@@ -49,7 +49,7 @@ class OutboxPublisherWorkerTest {
         OutboxEvent event = new OutboxEvent("ORDER", UUID.randomUUID(), "ORDER_PAID", "{\"test\":\"json\"}");
         event.setId(UUID.randomUUID());
 
-        when(outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING))
+        when(outboxEventRepository.lockNextPendingBatch())
                 .thenReturn(List.of(event));
         doThrow(new RuntimeException("RabbitMQ connection refused"))
                 .when(integrationEventPublisher).publish(anyString(), anyString());

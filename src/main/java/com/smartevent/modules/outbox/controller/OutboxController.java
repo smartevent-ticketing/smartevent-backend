@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -57,10 +58,17 @@ public class OutboxController {
 
     @PostMapping("/{id}/retry")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(noRollbackFor = RuntimeException.class)
     @Operation(summary = "Quản trị viên kích hoạt thử lại (Retry) đẩy một sự kiện Outbox sang RabbitMQ")
     public ApiResponse<String> retryEvent(@PathVariable UUID id) {
-        OutboxEvent event = outboxEventRepository.findById(id)
+        OutboxEvent event = outboxEventRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy Outbox Event"));
+
+        if (event.getStatus() == OutboxStatus.PUBLISHED) {
+            throw new com.smartevent.common.error.BusinessException(
+                    com.smartevent.common.error.ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "Sự kiện này đã được xác nhận publish");
+        }
 
         try {
             String routingKey = "event." + event.getEventType().toLowerCase().replace("_", ".");

@@ -24,7 +24,7 @@ public class OutboxPublisherWorker {
     @Scheduled(fixedDelay = 5000)
     @Transactional
     public void publishPendingEvents() {
-        List<OutboxEvent> pendingEvents = outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING);
+        List<OutboxEvent> pendingEvents = outboxEventRepository.lockNextPendingBatch();
         if (pendingEvents.isEmpty()) {
             return;
         }

@@ -6,7 +6,9 @@ import com.smartevent.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.stereotype.Component;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -32,7 +34,20 @@ public class RabbitMQIntegrationEventPublisher implements IntegrationEventPublis
     public void publish(String routingKey, String payloadJson) {
         log.info("Publishing tin nhắn sang RabbitMQ: [Exchange: {}, RoutingKey: {}]",
                 RabbitMQConfig.TOPIC_EXCHANGE, routingKey);
-        rabbitTemplate.convertAndSend(RabbitMQConfig.TOPIC_EXCHANGE, routingKey, payloadJson);
+        CorrelationData correlation = new CorrelationData();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.TOPIC_EXCHANGE, routingKey, payloadJson, correlation);
+        try {
+            CorrelationData.Confirm confirm = correlation.getFuture().get(5, TimeUnit.SECONDS);
+            if (!confirm.ack() || correlation.getReturned() != null) {
+                throw new IllegalStateException("RabbitMQ did not confirm a routed message: "
+                        + (correlation.getReturned() != null ? correlation.getReturned().getReplyText() : confirm.reason()));
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for RabbitMQ confirm", ex);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
+            throw new IllegalStateException("RabbitMQ publish was not confirmed", ex);
+        }
     }
 
     private String resolveRoutingKey(String eventType) {
