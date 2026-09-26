@@ -22,14 +22,18 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
-@Tag(name = "Payment Management", description = "APIs thanh toán đa cổng VNPay, MoMo, ZaloPay, PayPal và xử lý Webhook IPN")
+@Tag(name = "Payment Management", description = "Thanh toán VNPay và xử lý Return/IPN")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -51,7 +55,7 @@ public class PaymentController {
     @GetMapping("/vnpay/ipn")
     @Operation(summary = "Webhook IPN tiếp nhận kết quả thanh toán từ Server VNPay (Nguồn sự thật tài chính)")
     public ResponseEntity<VNPayIpnResponse> vnpayIpn(@RequestParam Map<String, String> params) {
-        log.info("Nhận Webhook IPN từ Server VNPay: {}", params);
+        log.info("Nhận VNPay IPN cho đơn {}", params.get("vnp_TxnRef"));
         VNPayIpnResponse response = paymentService.handleVNPayIpn(params);
         return ResponseEntity.ok(response);
     }
@@ -60,13 +64,20 @@ public class PaymentController {
     @Operation(summary = "Return URL tiếp nhận khách hàng quay lại sau khi thanh toán trên VNPay (Chuyển hướng về Frontend UI)")
     public void vnpayReturn(
             @RequestParam Map<String, String> params,
-            HttpServletRequest request,
             HttpServletResponse response) throws IOException {
-        log.info("Khách hàng quay lại từ cổng VNPay Return: {}", params);
+        log.info("Nhận VNPay Return cho đơn {}", params.get("vnp_TxnRef"));
         paymentService.handleVNPayReturn(params);
 
-        String queryString = request.getQueryString();
-        String redirectTarget = frontendUrl + "/payment/vnpay-return" + (queryString != null ? "?" + queryString : "");
+        StringJoiner query = new StringJoiner("&");
+        for (String key : List.of("vnp_TxnRef", "vnp_ResponseCode", "vnp_Amount",
+                "vnp_TransactionNo", "vnp_BankCode", "vnp_PayDate")) {
+            String value = params.get(key);
+            if (value != null) {
+                query.add(key + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8));
+            }
+        }
+        String redirectTarget = frontendUrl + "/payment/vnpay-return"
+                + (query.length() > 0 ? "?" + query : "");
         response.sendRedirect(redirectTarget);
     }
 

@@ -32,6 +32,10 @@ public class VNPayGatewayProvider implements PaymentGatewayProvider {
 
     @Override
     public String createPaymentUrl(Payment payment, Order order, HttpServletRequest request, String bankCode) {
+        if (vnpayProperties.getTmnCode() == null || vnpayProperties.getTmnCode().isBlank()
+                || vnpayProperties.getHashSecret() == null || vnpayProperties.getHashSecret().isBlank()) {
+            throw new IllegalStateException("VNPay merchant credentials are not configured");
+        }
         long amountInCents = payment.getAmount().multiply(BigDecimal.valueOf(100)).longValueExact();
 
         Instant now = Instant.now();

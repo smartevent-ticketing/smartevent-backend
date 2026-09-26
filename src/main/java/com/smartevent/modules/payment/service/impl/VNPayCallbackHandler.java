@@ -46,7 +46,9 @@ public class VNPayCallbackHandler {
         String responseCode = params.get("vnp_ResponseCode");
 
         // BƯỚC 1: Xác thực chữ ký số HMAC-SHA512
-        boolean isValidSignature = VNPayUtils.verifySignature(params, secureHash, vnPayProperties.getHashSecret());
+        boolean isValidSignature = vnPayProperties.getHashSecret() != null
+                && !vnPayProperties.getHashSecret().isBlank()
+                && VNPayUtils.verifySignature(params, secureHash, vnPayProperties.getHashSecret());
         if (!isValidSignature) {
             log.error("Chữ ký Webhook IPN VNPay không hợp lệ!");
             return VNPayIpnResponse.invalidChecksum();
