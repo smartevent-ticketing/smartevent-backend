@@ -3,10 +3,15 @@ package com.smartevent.modules.event.service;
 import com.smartevent.common.enums.AreaType;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
+import com.smartevent.modules.event.dto.request.CompleteDraftSetupRequest;
 import com.smartevent.modules.event.dto.request.GenerateSeatsRequest;
 import com.smartevent.modules.event.dto.response.EventAreaResponse;
 import com.smartevent.modules.event.dto.response.EventResponse;
 import com.smartevent.modules.event.service.impl.EventSetupServiceImpl;
+import com.smartevent.modules.event.repository.EventAreaRepository;
+import com.smartevent.modules.event.repository.EventRepository;
+import com.smartevent.modules.event.entity.Event;
+import com.smartevent.common.enums.EventStatus;
 import com.smartevent.modules.ticketing.dto.response.TicketTypeResponse;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
 import com.smartevent.modules.ticketing.service.TicketTypeService;
@@ -36,6 +41,8 @@ class EventSetupServiceTest {
     @Mock EventSeatService seats;
     @Mock TicketTypeService types;
     @Mock TicketSalePhaseService phases;
+    @Mock EventRepository eventRepository;
+    @Mock EventAreaRepository eventAreaRepository;
     EventSetupService service;
     UUID userId = UUID.randomUUID();
     UUID eventId = UUID.randomUUID();
@@ -44,7 +51,7 @@ class EventSetupServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EventSetupServiceImpl(events, areas, seats, types, phases);
+        service = new EventSetupServiceImpl(events, areas, seats, types, phases, eventRepository, eventAreaRepository);
     }
 
     private CreateEventSetupRequest request(AreaType areaType, int capacity) {
@@ -99,5 +106,42 @@ class EventSetupServiceTest {
         verify(transactions).rollback(status);
         verify(transactions, never()).commit(any());
         verify(events, never()).submitForApproval(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void completesExistingDraftAndReturnsPendingOnRetry() {
+        Event draft = mock(Event.class);
+        when(draft.getOrganizerId()).thenReturn(userId);
+        when(draft.getStatus()).thenReturn(EventStatus.DRAFT, EventStatus.PENDING_APPROVAL);
+        when(draft.getEndTime()).thenReturn(Instant.now().plusSeconds(7200));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(java.util.Optional.of(draft));
+        EventAreaResponse area = mock(EventAreaResponse.class);
+        TicketTypeResponse type = mock(TicketTypeResponse.class);
+        when(area.id()).thenReturn(areaId);
+        when(type.id()).thenReturn(typeId);
+        when(areas.createArea(eq(eventId), eq(userId), eq(false), any())).thenReturn(area);
+        when(types.createTicketType(eq(eventId), eq(userId), eq(false), any())).thenReturn(type);
+        EventResponse submitted = mock(EventResponse.class);
+        when(events.submitForApproval(eventId, userId, false)).thenReturn(submitted);
+        when(events.getEventById(eventId, userId, false)).thenReturn(submitted);
+        CompleteDraftSetupRequest request = new CompleteDraftSetupRequest(
+                List.of(new CreateEventSetupRequest.Tier("VIP", AreaType.STANDING, BigDecimal.TEN, 10)));
+
+        assertSame(submitted, service.completeDraftAndSubmit(eventId, userId, request));
+        assertSame(submitted, service.completeDraftAndSubmit(eventId, userId, request));
+        verify(areas, times(1)).createArea(eq(eventId), eq(userId), eq(false), any());
+        verify(events, times(1)).submitForApproval(eventId, userId, false);
+    }
+
+    @Test
+    void rejectsDraftOwnedByAnotherOrganizerBeforeConfiguration() {
+        Event draft = mock(Event.class);
+        when(draft.getOrganizerId()).thenReturn(UUID.randomUUID());
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(java.util.Optional.of(draft));
+        CompleteDraftSetupRequest request = new CompleteDraftSetupRequest(
+                List.of(new CreateEventSetupRequest.Tier("VIP", AreaType.STANDING, BigDecimal.TEN, 10)));
+
+        assertThrows(RuntimeException.class, () -> service.completeDraftAndSubmit(eventId, userId, request));
+        verifyNoInteractions(areas, seats, types, phases);
     }
 }
