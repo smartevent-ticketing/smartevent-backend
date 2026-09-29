@@ -10,6 +10,10 @@ import com.smartevent.modules.payment.entity.PaymentRefundReviewAction;
 import com.smartevent.modules.payment.repository.PaymentRepository;
 import com.smartevent.modules.payment.repository.PaymentRefundReviewActionRepository;
 import com.smartevent.modules.payment.repository.PaymentRefundReviewRepository;
+import com.smartevent.modules.ordering.entity.Order;
+import com.smartevent.modules.ordering.repository.OrderRepository;
+import com.smartevent.common.enums.OrderStatus;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +26,40 @@ public class PaymentReconciliationService {
     private final PaymentRefundReviewRepository reviewRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentRefundReviewActionRepository actionRepository;
+    private final OrderRepository orderRepository;
+
+    @Transactional(readOnly = true)
+    public Optional<PaymentRefundReview> findBuyerReview(UUID orderId, UUID buyerId) {
+        verifyBuyer(orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng")), buyerId);
+        return reviewRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId);
+    }
+
+    @Transactional
+    public PaymentRefundReview requestReviewByBuyer(UUID orderId, UUID buyerId, String reason) {
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng"));
+        verifyBuyer(order, buyerId);
+        Optional<PaymentRefundReview> existing = reviewRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId);
+        if (existing.isPresent()) return existing.get();
+        if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.PARTIALLY_REFUNDED) {
+            throw new BusinessException(ErrorCode.ORDER_INVALID_STATUS, "Chỉ có thể yêu cầu hỗ trợ cho đơn đã thanh toán");
+        }
+        String detail = reason == null ? "" : reason.trim();
+        if (detail.length() < 10 || detail.length() > 200) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Lý do hỗ trợ cần từ 10 đến 200 ký tự");
+        }
+        Payment payment = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .filter(Payment::isSuccess).findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND, "Không tìm thấy giao dịch đã thanh toán"));
+        return reviewRepository.save(new PaymentRefundReview(payment, "CUSTOMER_REQUEST: " + detail));
+    }
+
+    private void verifyBuyer(Order order, UUID buyerId) {
+        if (!order.getUserId().equals(buyerId)) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền xem đơn hàng này");
+        }
+    }
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void requireReview(Payment payment, String reason) {

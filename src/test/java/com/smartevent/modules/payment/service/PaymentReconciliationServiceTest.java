@@ -1,6 +1,8 @@
 package com.smartevent.modules.payment.service;
 
 import com.smartevent.common.enums.PaymentMethod;
+import com.smartevent.common.enums.PaymentStatus;
+import com.smartevent.common.enums.OrderStatus;
 import com.smartevent.common.enums.RefundReviewStatus;
 import com.smartevent.common.error.BusinessException;
 import com.smartevent.modules.payment.dto.request.UpdateRefundReviewRequest;
@@ -10,6 +12,8 @@ import com.smartevent.modules.payment.entity.PaymentRefundReviewAction;
 import com.smartevent.modules.payment.repository.PaymentRefundReviewActionRepository;
 import com.smartevent.modules.payment.repository.PaymentRefundReviewRepository;
 import com.smartevent.modules.payment.repository.PaymentRepository;
+import com.smartevent.modules.ordering.entity.Order;
+import com.smartevent.modules.ordering.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,7 +27,38 @@ class PaymentReconciliationServiceTest {
     private final PaymentRefundReviewRepository reviews = mock(PaymentRefundReviewRepository.class);
     private final PaymentRepository payments = mock(PaymentRepository.class);
     private final PaymentRefundReviewActionRepository actions = mock(PaymentRefundReviewActionRepository.class);
-    private final PaymentReconciliationService service = new PaymentReconciliationService(reviews, payments, actions);
+    private final OrderRepository orders = mock(OrderRepository.class);
+    private final PaymentReconciliationService service = new PaymentReconciliationService(reviews, payments, actions, orders);
+
+    @Test
+    void buyerCreatesOneManualReviewForPaidOrder() {
+        UUID orderId = UUID.randomUUID(), buyerId = UUID.randomUUID();
+        Order order = mock(Order.class);
+        when(order.getUserId()).thenReturn(buyerId);
+        when(order.getStatus()).thenReturn(OrderStatus.PAID);
+        when(orders.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(reviews.findFirstByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(Optional.empty());
+        Payment payment = new Payment(orderId, PaymentMethod.VNPAY, "VNPAY", new BigDecimal("500000"));
+        payment.setStatus(PaymentStatus.SUCCESS);
+        when(payments.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(java.util.List.of(payment));
+        when(reviews.save(any(PaymentRefundReview.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentRefundReview review = service.requestReviewByBuyer(orderId, buyerId, "Sự kiện bị hủy, cần hỗ trợ");
+        assertEquals(orderId, review.getOrderId());
+        assertTrue(review.getReason().contains("Sự kiện bị hủy"));
+        assertEquals(RefundReviewStatus.REQUIRED, review.getStatus());
+    }
+
+    @Test
+    void buyerCannotRequestReviewForAnotherUsersOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order order = mock(Order.class);
+        when(order.getUserId()).thenReturn(UUID.randomUUID());
+        when(orders.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+        assertThrows(BusinessException.class, () -> service.requestReviewByBuyer(orderId,
+                UUID.randomUUID(), "Cần hỗ trợ giao dịch"));
+        verifyNoInteractions(payments, reviews);
+    }
 
     @Test
     void adminRecordsManualRefundWithEvidenceAndAudit() {

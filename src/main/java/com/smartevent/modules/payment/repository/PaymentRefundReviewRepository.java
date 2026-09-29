@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface PaymentRefundReviewRepository extends JpaRepository<PaymentRefundReview, UUID> {
     boolean existsByPaymentId(UUID paymentId);
+    java.util.Optional<PaymentRefundReview> findFirstByOrderIdOrderByCreatedAtDesc(UUID orderId);
     Page<PaymentRefundReview> findByStatusOrderByCreatedAtAsc(RefundReviewStatus status, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
