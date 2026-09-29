@@ -86,6 +86,7 @@ public class EventCommandService {
         event.setResaleDeadlineHoursBefore(request.resaleDeadlineHoursBefore());
         event.setVirtualQueueEnabled(Boolean.TRUE.equals(request.virtualQueueEnabled()));
         event.setQueueBatchSize(request.queueBatchSize() != null ? request.queueBatchSize() : 50);
+        event.setMaxTicketsPerUser(request.maxTicketsPerUser());
 
         Event savedEvent = eventRepository.save(event);
 
@@ -174,6 +175,15 @@ public class EventCommandService {
         event.setResaleDeadlineHoursBefore(request.resaleDeadlineHoursBefore());
         event.setVirtualQueueEnabled(Boolean.TRUE.equals(request.virtualQueueEnabled()));
         event.setQueueBatchSize(request.queueBatchSize() != null ? request.queueBatchSize() : 50);
+        if (Boolean.TRUE.equals(request.clearMaxTicketsPerUser()) && request.maxTicketsPerUser() != null) {
+            throw new EventException(ErrorCode.VALIDATION_ERROR,
+                    "Không thể vừa đặt vừa xóa giới hạn vé mỗi tài khoản");
+        }
+        if (Boolean.TRUE.equals(request.clearMaxTicketsPerUser())) {
+            event.setMaxTicketsPerUser(null);
+        } else if (request.maxTicketsPerUser() != null) {
+            event.setMaxTicketsPerUser(request.maxTicketsPerUser());
+        }
 
         // 1. Cập nhật Categories (Xóa liên kết cũ -> Lưu danh sách mới)
         if (request.categoryIds() != null) {

@@ -481,4 +481,120 @@ class EventServiceTest {
         assertEquals(eventId, response.id());
         assertEquals(EventStatus.DRAFT, response.status());
     }
+
+    @Test
+    @DisplayName("R1: Tạo sự kiện với cấu hình maxTicketsPerUser thành công")
+    void createEvent_WithMaxTicketsPerUser_Success() {
+        UUID organizerId = UUID.randomUUID();
+        Instant start = Instant.now().plus(7, ChronoUnit.DAYS);
+        Instant end = start.plus(4, ChronoUnit.HOURS);
+
+        CreateEventRequest request = new CreateEventRequest(
+                "Event Limit Test", "Description", null, start, end, "Hà Nội",
+                null, null, null, false, null, null, false, 50, 4
+        );
+
+        when(eventRepository.existsBySlug("event-limit-test")).thenReturn(false);
+        when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> {
+            Event e = invocation.getArgument(0);
+            e.setId(UUID.randomUUID());
+            return e;
+        });
+
+        EventResponse response = eventService.createEvent(organizerId, request);
+
+        assertNotNull(response);
+        assertEquals(4, response.maxTicketsPerUser());
+    }
+
+    @Test
+    @DisplayName("Cập nhật từ client cũ không gửi giới hạn vẫn giữ nguyên giới hạn đã lưu")
+    void updateEvent_OmittedMaxTicketsPerUser_PreservesLimit() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        Event event = eventWithTicketLimit(eventId, organizerId, 4);
+        stubSuccessfulEventUpdate(eventId, event);
+
+        UpdateEventRequest request = updateRequestWithoutTicketLimit();
+        EventResponse response = eventService.updateEvent(eventId, organizerId, false, request);
+
+        assertEquals(4, response.maxTicketsPerUser());
+        assertEquals(4, event.getMaxTicketsPerUser());
+    }
+
+    @Test
+    @DisplayName("Cập nhật giới hạn vé mới")
+    void updateEvent_NewMaxTicketsPerUser_ChangesLimit() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        Event event = eventWithTicketLimit(eventId, organizerId, 4);
+        stubSuccessfulEventUpdate(eventId, event);
+
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Cap Test", null, null, event.getStartTime(), event.getEndTime(), "Hà Nội",
+                null, null, null, false, null, null, false, 50, 2);
+        EventResponse response = eventService.updateEvent(eventId, organizerId, false, request);
+
+        assertEquals(2, response.maxTicketsPerUser());
+    }
+
+    @Test
+    @DisplayName("Chỉ xóa giới hạn vé khi yêu cầu tường minh")
+    void updateEvent_ExplicitClearMaxTicketsPerUser_RemovesLimit() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        Event event = eventWithTicketLimit(eventId, organizerId, 4);
+        stubSuccessfulEventUpdate(eventId, event);
+
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Cap Test", null, null, event.getStartTime(), event.getEndTime(), "Hà Nội",
+                null, null, null, false, null, null, false, 50, null, true);
+        EventResponse response = eventService.updateEvent(eventId, organizerId, false, request);
+
+        assertNull(response.maxTicketsPerUser());
+    }
+
+    @Test
+    @DisplayName("Không cho phép vừa đặt vừa xóa giới hạn vé")
+    void updateEvent_SetAndClearMaxTicketsPerUser_ThrowsValidationError() {
+        UUID eventId = UUID.randomUUID();
+        UUID organizerId = UUID.randomUUID();
+        Event event = eventWithTicketLimit(eventId, organizerId, 4);
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
+
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Cap Test", null, null, event.getStartTime(), event.getEndTime(), "Hà Nội",
+                null, null, null, false, null, null, false, 50, 2, true);
+        EventException exception = assertThrows(EventException.class,
+                () -> eventService.updateEvent(eventId, organizerId, false, request));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        assertEquals(4, event.getMaxTicketsPerUser());
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    private Event eventWithTicketLimit(UUID eventId, UUID organizerId, int limit) {
+        Event event = new Event();
+        event.setId(eventId);
+        event.setOrganizerId(organizerId);
+        event.setStatus(EventStatus.DRAFT);
+        event.setName("Cap Test");
+        event.setSlug("cap-test");
+        event.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        event.setEndTime(event.getStartTime().plus(3, ChronoUnit.HOURS));
+        event.setMaxTicketsPerUser(limit);
+        return event;
+    }
+
+    private void stubSuccessfulEventUpdate(UUID eventId, Event event) {
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(event));
+        when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private UpdateEventRequest updateRequestWithoutTicketLimit() {
+        Instant start = Instant.now().plus(8, ChronoUnit.DAYS);
+        return new UpdateEventRequest(
+                "Cap Test", null, null, start, start.plus(3, ChronoUnit.HOURS), "Hà Nội",
+                null, null, null, false, null, null, false, 50);
+    }
 }

@@ -91,7 +91,8 @@ class ReservationServiceTest {
                         ticketSalePhaseRepository),
                 reservationRepository,
                 reservationItemRepository,
-                eventRepository);
+                eventRepository,
+                userSalePhaseCounterService);
     }
 
     private UUID userId;
@@ -467,5 +468,85 @@ class ReservationServiceTest {
 
         assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, exception.getErrorCode());
         assertTrue(exception.getMessage().contains("kết thúc"));
+    }
+
+    @Test
+    @DisplayName("R1: Chặn đặt vé khi vượt quá giới hạn vé tối đa của sự kiện (EXCEEDED_TICKET_LIMIT)")
+    void createReservation_ExceedsEventMaxTicketsPerUser_ThrowsExceededTicketLimit() {
+        sampleEvent.setMaxTicketsPerUser(4);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(userSalePhaseCounterService.getOccupiedTicketsForEvent(userId, eventId)).thenReturn(3);
+
+        // Requested: 2 vé. Đã mua: 2, đang giữ: 1. Tổng = 2 + 1 + 2 = 5 > 4 (max)
+        CreateReservationRequest request = new CreateReservationRequest(
+                eventId,
+                List.of(new ReservationItemRequest(ticketTypeId, salePhaseId, null, 2)),
+                "idemp-r1-limit"
+        );
+
+        ReservationException exception = assertThrows(ReservationException.class, () ->
+                reservationService.createReservation(userId, request)
+        );
+
+        assertEquals(ErrorCode.EXCEEDED_TICKET_LIMIT, exception.getErrorCode());
+        assertEquals("Bạn đã mua giới hạn số vé cho phép", exception.getMessage());
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("R1: Đặt vé thành công khi tổng số vé trong ngưỡng giới hạn của sự kiện")
+    void createReservation_WithinEventMaxTicketsPerUser_Success() {
+        sampleEvent.setMaxTicketsPerUser(4);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(userSalePhaseCounterService.getOccupiedTicketsForEvent(userId, eventId)).thenReturn(1);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(sampleReservation);
+
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(ticketSalePhaseRepository.findById(salePhaseId)).thenReturn(Optional.of(samplePhase));
+        when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(standingArea));
+
+        ReservationItem savedItem = new ReservationItem(sampleReservation.getId(), ticketTypeId, salePhaseId, null, 2, BigDecimal.valueOf(500000));
+        when(reservationItemRepository.save(any(ReservationItem.class))).thenReturn(savedItem);
+
+        // Requested: 2 vé. Đã mua: 1, đang giữ: 0. Tổng = 1 + 0 + 2 = 3 <= 4
+        CreateReservationRequest request = new CreateReservationRequest(
+                eventId,
+                List.of(new ReservationItemRequest(ticketTypeId, salePhaseId, null, 2)),
+                "idemp-r1-ok"
+        );
+
+        ReservationResponse response = reservationService.createReservation(userId, request);
+
+        assertNotNull(response);
+        verify(reservationRepository, times(1)).save(any(Reservation.class));
+    }
+
+    @Test
+    @DisplayName("R1: Chặn đặt vé khi tổng số vé ở nhiều hạng vé vượt quá giới hạn sự kiện")
+    void createReservation_MultiItemExceedsEventMaxTicketsPerUser_ThrowsExceededTicketLimit() {
+        sampleEvent.setMaxTicketsPerUser(3);
+        when(eventRepository.findByIdForShare(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(userSalePhaseCounterService.getOccupiedTicketsForEvent(userId, eventId)).thenReturn(0);
+
+        UUID type2Id = UUID.randomUUID();
+        UUID phase2Id = UUID.randomUUID();
+
+        // Requested: 2 vé hạng 1 + 2 vé hạng 2 = 4 vé > 3 (max)
+        CreateReservationRequest request = new CreateReservationRequest(
+                eventId,
+                List.of(
+                        new ReservationItemRequest(ticketTypeId, salePhaseId, null, 2),
+                        new ReservationItemRequest(type2Id, phase2Id, null, 2)
+                ),
+                "idemp-multi-limit"
+        );
+
+        ReservationException exception = assertThrows(ReservationException.class, () ->
+                reservationService.createReservation(userId, request)
+        );
+
+        assertEquals(ErrorCode.EXCEEDED_TICKET_LIMIT, exception.getErrorCode());
+        assertEquals("Bạn đã mua giới hạn số vé cho phép", exception.getMessage());
+        verify(reservationRepository, never()).save(any());
     }
 }

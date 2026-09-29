@@ -1,7 +1,9 @@
 package com.smartevent.modules.event.dto.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -40,5 +42,55 @@ public record UpdateEventRequest(
 
         Boolean virtualQueueEnabled,
 
-        Integer queueBatchSize
-) {}
+        Integer queueBatchSize,
+
+        @Schema(description = "Bỏ qua hoặc gửi null để giữ giới hạn hiện tại; gửi số dương để thay đổi")
+        @Positive(message = "Số vé tối đa mỗi tài khoản phải lớn hơn 0")
+        Integer maxTicketsPerUser,
+
+        @Schema(description = "Gửi true để bỏ giới hạn hiện tại; không gửi cùng maxTicketsPerUser")
+        Boolean clearMaxTicketsPerUser
+) {
+    public UpdateEventRequest(
+            String name,
+            String description,
+            UUID venueId,
+            Instant startTime,
+            Instant endTime,
+            String city,
+            List<UUID> categoryIds,
+            UUID bannerFileId,
+            List<UUID> galleryFileIds,
+            Boolean resaleEnabled,
+            BigDecimal maxResalePriceMultiplier,
+            Integer resaleDeadlineHoursBefore,
+            Boolean virtualQueueEnabled,
+            Integer queueBatchSize,
+            Integer maxTicketsPerUser
+    ) {
+        this(name, description, venueId, startTime, endTime, city, categoryIds, bannerFileId, galleryFileIds,
+                resaleEnabled, maxResalePriceMultiplier, resaleDeadlineHoursBefore, virtualQueueEnabled, queueBatchSize,
+                maxTicketsPerUser, false);
+    }
+
+    public UpdateEventRequest(
+            String name,
+            String description,
+            UUID venueId,
+            Instant startTime,
+            Instant endTime,
+            String city,
+            List<UUID> categoryIds,
+            UUID bannerFileId,
+            List<UUID> galleryFileIds,
+            Boolean resaleEnabled,
+            BigDecimal maxResalePriceMultiplier,
+            Integer resaleDeadlineHoursBefore,
+            Boolean virtualQueueEnabled,
+            Integer queueBatchSize
+    ) {
+        this(name, description, venueId, startTime, endTime, city, categoryIds, bannerFileId, galleryFileIds,
+                resaleEnabled, maxResalePriceMultiplier, resaleDeadlineHoursBefore, virtualQueueEnabled, queueBatchSize,
+                null, false);
+    }
+}

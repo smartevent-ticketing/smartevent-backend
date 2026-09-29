@@ -127,9 +127,10 @@ class BackendBusinessRegressionTest {
         when(items.save(any(ReservationItem.class))).thenAnswer(call -> {
             ReservationItem item = call.getArgument(0); item.setId(UUID.randomUUID()); return item;
         });
+        var counters = mock(UserSalePhaseCounterService.class);
         var service = new ReservationServiceImpl(new ReservationItemValidator(areas, seats, types, phases),
-                new ReservationResources(items, seats, mock(InventoryService.class), mock(UserSalePhaseCounterService.class)),
-                mock(ReservationQueryService.class), reservations, items, events);
+                new ReservationResources(items, seats, mock(InventoryService.class), counters),
+                mock(ReservationQueryService.class), reservations, items, events, counters);
         var request = new CreateReservationRequest(eventId, List.of(
                 new ReservationItemRequest(typeId, phaseId, null, 3),
                 new ReservationItemRequest(typeId, phaseId, null, 3)), UUID.randomUUID().toString());
@@ -228,10 +229,11 @@ class BackendBusinessRegressionTest {
 
         when(events.findByIdForShare(eventId)).thenReturn(Optional.of(endedEvent));
 
+        var counters = mock(UserSalePhaseCounterService.class);
         var service = new ReservationServiceImpl(
                 new ReservationItemValidator(areas, seats, types, phases),
-                new ReservationResources(items, seats, mock(InventoryService.class), mock(UserSalePhaseCounterService.class)),
-                mock(ReservationQueryService.class), reservations, items, events
+                new ReservationResources(items, seats, mock(InventoryService.class), counters),
+                mock(ReservationQueryService.class), reservations, items, events, counters
         );
 
         var request = new CreateReservationRequest(

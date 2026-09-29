@@ -31,4 +31,14 @@ public class UserSalePhaseCounterController {
     ) {
         return ApiResponse.success(userSalePhaseCounterService.getUserCounter(currentUser.getId(), salePhaseId));
     }
+
+    @GetMapping("/api/v1/events/{eventId}/my-counter")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Tổng số vé người dùng hiện tại đã mua hoặc đang giữ trong sự kiện")
+    public ApiResponse<Integer> getMyEventCounter(
+            @PathVariable UUID eventId,
+            @CurrentUser UserPrincipal currentUser
+    ) {
+        return ApiResponse.success(userSalePhaseCounterService.getOccupiedTicketsForEvent(currentUser.getId(), eventId));
+    }
 }

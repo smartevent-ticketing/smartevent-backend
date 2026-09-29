@@ -65,6 +65,9 @@ public class Event extends BaseEntity {
     @Column(name = "city", length = 100)
     private String city;
 
+    @Column(name = "max_tickets_per_user")
+    private Integer maxTicketsPerUser;
+
     @Column(name = "published_at")
     private Instant publishedAt;
 }

@@ -39,6 +39,7 @@ public enum ErrorCode {
     MAX_PER_USER_EXCEEDED("MAX_PER_USER_EXCEEDED", "Requested quantity exceeds maximum allowed per user", HttpStatus.BAD_REQUEST),
     RESERVATION_EXPIRED("RESERVATION_EXPIRED", "Reservation has expired", HttpStatus.BAD_REQUEST),
     RESERVATION_ALREADY_EXISTS("RESERVATION_ALREADY_EXISTS", "User already has an active pending reservation for this event", HttpStatus.BAD_REQUEST),
+    EXCEEDED_TICKET_LIMIT("EXCEEDED_TICKET_LIMIT", "Bạn đã mua giới hạn số vé cho phép", HttpStatus.BAD_REQUEST),
 
     // Ordering (Module 6)
     ORDER_NOT_FOUND("ORDER_NOT_FOUND", "Order not found", HttpStatus.NOT_FOUND),
@@ -76,6 +77,12 @@ public enum ErrorCode {
 
     ErrorCode(String code, String defaultMessage, HttpStatus httpStatus) {
         this.code = code;
+        this.defaultMessage = defaultMessage;
+        this.httpStatus = httpStatus;
+    }
+
+    ErrorCode(HttpStatus httpStatus, String defaultMessage) {
+        this.code = this.name();
         this.defaultMessage = defaultMessage;
         this.httpStatus = httpStatus;
     }

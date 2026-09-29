@@ -1,5 +1,7 @@
 package com.smartevent.modules.ticketing.repository;
 
+import com.smartevent.modules.ticketing.entity.TicketSalePhase;
+import com.smartevent.modules.ticketing.entity.TicketType;
 import com.smartevent.modules.ticketing.entity.UserSalePhaseCounter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -105,4 +107,43 @@ public interface UserSalePhaseCounterRepository extends JpaRepository<UserSalePh
             @Param("quantity") int quantity,
             @Param("now") Instant now
     );
+
+    /**
+     * 6. CUMULATIVE PURCHASED: Tổng số vé user đã mua (sau khi trừ vé đã hoàn) trên toàn bộ sự kiện.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(uc.purchasedQuantity - uc.refundedQuantity), 0)
+        FROM UserSalePhaseCounter uc
+        JOIN TicketSalePhase tsp ON uc.salePhaseId = tsp.id
+        JOIN TicketType tt ON tsp.ticketTypeId = tt.id
+        WHERE tt.eventId = :eventId
+          AND uc.userId = :userId
+    """)
+    int countPurchasedQuantityByUserIdAndEventId(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
+
+    /**
+     * 7. CUMULATIVE HELD: Tổng số vé user đang giữ trong phiên giữ chỗ trên toàn bộ sự kiện.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(uc.heldQuantity), 0)
+        FROM UserSalePhaseCounter uc
+        JOIN TicketSalePhase tsp ON uc.salePhaseId = tsp.id
+        JOIN TicketType tt ON tsp.ticketTypeId = tt.id
+        WHERE tt.eventId = :eventId
+          AND uc.userId = :userId
+    """)
+    int countHeldQuantityByUserIdAndEventId(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
+
+    /**
+     * 8. CUMULATIVE OCCUPIED: Tổng số vé user đang chiếm dụng (held + purchased - refunded) trên toàn bộ sự kiện.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(uc.purchasedQuantity - uc.refundedQuantity + uc.heldQuantity), 0)
+        FROM UserSalePhaseCounter uc
+        JOIN TicketSalePhase tsp ON uc.salePhaseId = tsp.id
+        JOIN TicketType tt ON tsp.ticketTypeId = tt.id
+        WHERE tt.eventId = :eventId
+          AND uc.userId = :userId
+    """)
+    int countOccupiedTicketsByUserIdAndEventId(@Param("userId") UUID userId, @Param("eventId") UUID eventId);
 }

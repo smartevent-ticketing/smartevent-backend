@@ -15,4 +15,10 @@ public interface UserSalePhaseCounterService {
     void confirmUserPurchase(UUID userId, UUID salePhaseId, int quantity);
 
     void processUserRefund(UUID userId, UUID salePhaseId, int quantity);
+
+    int getPurchasedTicketsForEvent(UUID userId, UUID eventId);
+
+    int getHeldTicketsForEvent(UUID userId, UUID eventId);
+
+    int getOccupiedTicketsForEvent(UUID userId, UUID eventId);
 }

@@ -3,6 +3,7 @@ package com.smartevent.modules.event.dto.request;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -42,7 +43,29 @@ public record CreateEventRequest (
 
         Boolean virtualQueueEnabled,
 
-        Integer queueBatchSize
+        Integer queueBatchSize,
+
+        @Positive(message = "Số vé tối đa mỗi tài khoản phải lớn hơn 0")
+        Integer maxTicketsPerUser
 ) {
+    public CreateEventRequest(
+            String name,
+            String description,
+            UUID venueId,
+            Instant startTime,
+            Instant endTime,
+            String city,
+            List<UUID> categoryIds,
+            UUID bannerFileId,
+            List<UUID> galleryFileIds,
+            Boolean resaleEnabled,
+            BigDecimal maxResalePriceMultiplier,
+            Integer resaleDeadlineHoursBefore,
+            Boolean virtualQueueEnabled,
+            Integer queueBatchSize
+    ) {
+        this(name, description, venueId, startTime, endTime, city, categoryIds, bannerFileId, galleryFileIds,
+                resaleEnabled, maxResalePriceMultiplier, resaleDeadlineHoursBefore, virtualQueueEnabled, queueBatchSize, null);
+    }
 }
 

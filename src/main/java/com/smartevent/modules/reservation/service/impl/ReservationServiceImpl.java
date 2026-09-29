@@ -17,20 +17,19 @@ import com.smartevent.modules.reservation.repository.ReservationRepository;
 import com.smartevent.modules.reservation.service.ReservationService;
 import com.smartevent.modules.ticketing.entity.TicketSalePhase;
 import com.smartevent.modules.ticketing.entity.TicketType;
+import com.smartevent.modules.ticketing.service.UserSalePhaseCounterService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ReservationServiceImpl implements ReservationService {
 
     private final ReservationItemValidator reservationItemValidator;
@@ -39,10 +38,33 @@ public class ReservationServiceImpl implements ReservationService {
     private final ReservationRepository reservationRepository;
     private final ReservationItemRepository reservationItemRepository;
     private final EventRepository eventRepository;
+    private final UserSalePhaseCounterService userSalePhaseCounterService;
+
+    public ReservationServiceImpl(
+            ReservationItemValidator reservationItemValidator,
+            ReservationResources reservationResources,
+            ReservationQueryService reservationQueryService,
+            ReservationRepository reservationRepository,
+            ReservationItemRepository reservationItemRepository,
+            EventRepository eventRepository,
+            UserSalePhaseCounterService userSalePhaseCounterService
+    ) {
+        this.reservationItemValidator = reservationItemValidator;
+        this.reservationResources = reservationResources;
+        this.reservationQueryService = reservationQueryService;
+        this.reservationRepository = reservationRepository;
+        this.reservationItemRepository = reservationItemRepository;
+        this.eventRepository = eventRepository;
+        this.userSalePhaseCounterService = userSalePhaseCounterService;
+    }
 
     @Override
     @Transactional
     public ReservationResponse createReservation(UUID userId, CreateReservationRequest request) {
+        // Acquire the transaction-scoped buyer/event lock before checking idempotency, pending holds,
+        // or the event limit. Other buyers of this event can proceed concurrently.
+        reservationRepository.lockBuyerEvent("reservation:" + userId + ":" + request.eventId());
+
         // 1. Kiểm tra Idempotency (Chống bấm đúp)
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
             var existingRes = reservationRepository.findByIdempotencyKey(request.idempotencyKey());
@@ -71,6 +93,20 @@ public class ReservationServiceImpl implements ReservationService {
 
         if (event.getEndTime() != null && Instant.now().isAfter(event.getEndTime())) {
             throw new ReservationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Sự kiện đã kết thúc, không thể đặt vé");
+        }
+
+        // 3.1. Giới hạn mua vé cấp sự kiện (Event-level Anti-scalping Limit - R1)
+        if (event.getMaxTicketsPerUser() != null && event.getMaxTicketsPerUser() > 0) {
+            long newQuantity = request.items().stream()
+                    .mapToLong(ReservationItemRequest::quantity)
+                    .sum();
+            int occupiedQuantity = userSalePhaseCounterService.getOccupiedTicketsForEvent(userId, request.eventId());
+
+            if (occupiedQuantity + newQuantity > event.getMaxTicketsPerUser()) {
+                log.warn("Người dùng {} vượt quá giới hạn vé sự kiện {} (Đã chiếm dụng: {}, Đang yêu cầu: {}, Tối đa: {})",
+                        userId, request.eventId(), occupiedQuantity, newQuantity, event.getMaxTicketsPerUser());
+                throw new ReservationException(ErrorCode.EXCEEDED_TICKET_LIMIT, "Bạn đã mua giới hạn số vé cho phép");
+            }
         }
 
         var selections = reservationItemValidator.validateAll(request.eventId(), request.items(), Instant.now());

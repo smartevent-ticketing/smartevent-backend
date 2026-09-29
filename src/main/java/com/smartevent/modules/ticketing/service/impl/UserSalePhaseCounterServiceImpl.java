@@ -105,4 +105,25 @@ public class UserSalePhaseCounterServiceImpl implements UserSalePhaseCounterServ
 
         log.info("Hoàn vé thành công {} vé cho người dùng {} trong đợt bán {}", quantity, userId, salePhaseId);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int getPurchasedTicketsForEvent(UUID userId, UUID eventId) {
+        if (userId == null || eventId == null) return 0;
+        return userSalePhaseCounterRepository.countPurchasedQuantityByUserIdAndEventId(userId, eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int getHeldTicketsForEvent(UUID userId, UUID eventId) {
+        if (userId == null || eventId == null) return 0;
+        return userSalePhaseCounterRepository.countHeldQuantityByUserIdAndEventId(userId, eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int getOccupiedTicketsForEvent(UUID userId, UUID eventId) {
+        if (userId == null || eventId == null) return 0;
+        return userSalePhaseCounterRepository.countOccupiedTicketsByUserIdAndEventId(userId, eventId);
+    }
 }

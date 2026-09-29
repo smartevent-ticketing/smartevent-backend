@@ -26,6 +26,7 @@ public record EventResponse(
         Integer resaleDeadlineHoursBefore,
         Boolean virtualQueueEnabled,
         Integer queueBatchSize,
+        Integer maxTicketsPerUser,
         Instant publishedAt,
         Instant createdAt,
         Instant updatedAt
@@ -54,9 +55,14 @@ public record EventResponse(
                 event.getResaleDeadlineHoursBefore(),
                 event.getVirtualQueueEnabled(),
                 event.getQueueBatchSize(),
+                event.getMaxTicketsPerUser(),
                 event.getPublishedAt(),
                 event.getCreatedAt(),
                 event.getUpdatedAt()
         );
+    }
+
+    public static EventResponse from(Event event) {
+        return of(event, null, List.of(), List.of());
     }
 }

@@ -3,6 +3,8 @@ package com.smartevent.modules.reservation.repository;
 import com.smartevent.common.enums.ReservationStatus;
 import com.smartevent.modules.reservation.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -12,6 +14,14 @@ import java.util.UUID;
 
 @Repository
 public interface ReservationRepository extends JpaRepository<Reservation, UUID> {
+
+    /**
+     * Serializes reservation creation for one buyer and event until the surrounding transaction commits.
+     * A hash collision can only cause extra waiting; it cannot allow an over-limit purchase.
+     * Selecting a constant avoids mapping PostgreSQL's void return type through Hibernate.
+     */
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(:lockKey, 0))", nativeQuery = true)
+    Integer lockBuyerEvent(@Param("lockKey") String lockKey);
 
     @org.springframework.data.jpa.repository.Query("select r.eventId from Reservation r where r.id = :id")
     Optional<UUID> findEventIdById(@org.springframework.data.repository.query.Param("id") UUID id);
