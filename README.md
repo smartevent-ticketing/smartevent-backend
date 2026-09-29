@@ -21,7 +21,7 @@ Hệ thống Backend cho nền tảng quản lý sự kiện và phân phối v�
 
 ### 2. Dành cho Ban tổ chức (Event Organizer)
 * **Khởi tạo & Cấu hình sự kiện linh hoạt:** Thiết lập thông tin địa điểm (Venue), phân khu (Zone), sơ đồ chỗ ngồi (Seat Map) và đa dạng các hạng vé (Ticket Types).
-* **Quản lý đợt mở bán (Sale Phases):** Cấu hình linh hoạt các giai đoạn bán vé (Early Bird, Standard, VIP, Last Minute) với thời gian và số lượng giới hạn riêng biệt.
+* **Quản lý đợt mở bán (Sale Phases):** Cấu hình các giai đoạn bán vé với thời gian và số lượng riêng. Khi sự kiện đã xuất bản nhưng chưa bắt đầu, ban tổ chức vẫn có thể tạo đợt mới trong sức chứa còn lại; vé đã bán hoặc đang giữ chỗ của đợt đóng vẫn chiếm sức chứa.
 * **Theo dõi & Nộp duyệt:** Quy trình kiểm duyệt sự kiện nhiều bước (Draft $\rightarrow$ Pending Approval $\rightarrow$ Published).
 
 ### 3. Dành cho Quản trị viên & Đội ngũ vận hành (Admin & Staff)
@@ -241,7 +241,7 @@ Tài liệu API chi tiết được cung cấp qua giao diện Swagger UI:
 
 API `GET /api/v1/areas/{areaId}/seats/available` hiện trả sơ đồ ghế với trạng thái `AVAILABLE`, `HELD`, `SOLD` hoặc `BLOCKED`. Chỉ ghế `AVAILABLE` được phép chọn; máy chủ kiểm tra lại trạng thái khi giữ chỗ.
 
-Danh sách ghế quản lý được phân trang theo hàng và số ghế. Địa điểm là dữ liệu dùng chung: Organizer có thể tạo địa điểm mới để khai báo sự kiện, nhưng chỉ Admin được cập nhật hoặc xóa địa điểm đã có.
+Danh sách ghế quản lý được phân trang theo hàng và số ghế. Ban tổ chức chọn địa điểm có sẵn hoặc tạo địa điểm mới khi khai báo sự kiện. Admin không có màn hình hay API ghi để quản lý địa điểm; địa điểm đã tạo là dữ liệu dùng chung để chọn cho các sự kiện khác.
 
 Hồ sơ `payment-refund-reviews` chỉ ghi nhận quyết định và chứng từ đối soát tiền do Admin cập nhật. Nó không tự hoàn tiền qua VNPay, thu hồi vé, hay giải phóng hạn mức mua vé. Những thao tác liên quan đến vé cần một quy trình hoàn vé riêng để tránh thay đổi quyền sử dụng vé từ một hồ sơ tài chính.
 
