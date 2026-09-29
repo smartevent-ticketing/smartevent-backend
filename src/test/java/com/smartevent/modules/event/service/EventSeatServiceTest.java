@@ -262,4 +262,34 @@ class EventSeatServiceTest {
 
         verify(eventSeatRepository, times(1)).deleteByEventAreaId(areaId);
     }
+
+    @Test
+    @DisplayName("R2: getAvailableSeatsByArea trả về toàn bộ ghế trong khu vực với trạng thái thực tế (AVAILABLE, HELD, SOLD)")
+    void getAvailableSeatsByArea_ReturnsAllSeatsWithActualStatus() {
+        UUID areaId = UUID.randomUUID();
+
+        when(eventAreaRepository.existsById(areaId)).thenReturn(true);
+
+        EventSeat seat1 = new EventSeat(areaId, "A", "01", "A-01", SeatStatus.AVAILABLE, null);
+        seat1.setId(UUID.randomUUID());
+        EventSeat seat2 = new EventSeat(areaId, "A", "02", "A-02", SeatStatus.HELD, null);
+        seat2.setId(UUID.randomUUID());
+        EventSeat seat3 = new EventSeat(areaId, "A", "03", "A-03", SeatStatus.SOLD, null);
+        seat3.setId(UUID.randomUUID());
+
+        when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
+                .thenReturn(List.of(seat1, seat2, seat3));
+
+        List<EventSeatResponse> seats = eventSeatService.getAvailableSeatsByArea(areaId);
+
+        assertNotNull(seats);
+        assertEquals(3, seats.size());
+        assertEquals(SeatStatus.AVAILABLE, seats.get(0).status());
+        assertEquals(SeatStatus.HELD, seats.get(1).status());
+        assertEquals(SeatStatus.SOLD, seats.get(2).status());
+        assertEquals("A-01", seats.get(0).label());
+        assertEquals("A-02", seats.get(1).label());
+        assertEquals("A-03", seats.get(2).label());
+        verify(eventSeatRepository, times(1)).findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId);
+    }
 }

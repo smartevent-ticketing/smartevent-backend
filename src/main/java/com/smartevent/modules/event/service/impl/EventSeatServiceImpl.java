@@ -104,9 +104,9 @@ public class EventSeatServiceImpl implements EventSeatService {
             throw new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khu vực");
         }
 
-        List<EventSeat> availableSeats = eventSeatRepository.findByEventAreaIdAndStatus(areaId, SeatStatus.AVAILABLE);
+        List<EventSeat> seats = eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId);
 
-        return availableSeats.stream()
+        return seats.stream()
                 .map(EventSeatResponse::from)
                 .toList();
     }
