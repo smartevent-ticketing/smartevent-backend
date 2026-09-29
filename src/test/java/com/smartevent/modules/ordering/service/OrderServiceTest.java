@@ -86,6 +86,14 @@ class OrderServiceTest {
     }
 
     @Test
+    void rejectsUnsupportedPaymentMethodBeforeCreatingOrder() {
+        var failure = assertThrows(OrderingException.class, () -> orderService.createOrderFromReservation(
+                userId, new CreateOrderRequest(reservationId, null, PaymentMethod.MOMO)));
+        assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, failure.getErrorCode());
+        verifyNoInteractions(orderRepository, reservationRepository);
+    }
+
+    @Test
     @DisplayName("Tạo đơn hàng thành công và đóng băng đúng tổng giá tiền (1.100.000 VNĐ)")
     void createOrder_Success() {
         CreateOrderRequest request = new CreateOrderRequest(reservationId, "Ghi chu", PaymentMethod.VNPAY);

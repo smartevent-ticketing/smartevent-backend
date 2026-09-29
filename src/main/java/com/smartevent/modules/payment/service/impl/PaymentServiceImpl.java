@@ -64,6 +64,11 @@ public class PaymentServiceImpl implements PaymentService {
         }
         orderLifecycleService.requirePayableReservation(order);
 
+        if (request.paymentMethod() != PaymentMethod.VNPAY
+                || (order.getSelectedPaymentMethod() != null && order.getSelectedPaymentMethod() != PaymentMethod.VNPAY)) {
+            throw new PaymentException(ErrorCode.BUSINESS_RULE_VIOLATION, "Hiện chỉ hỗ trợ thanh toán qua VNPay");
+        }
+
         // 2. Tìm Provider tương ứng với PaymentMethod
         PaymentGatewayProvider provider = gatewayProviders.get(request.paymentMethod());
         if (provider == null) {

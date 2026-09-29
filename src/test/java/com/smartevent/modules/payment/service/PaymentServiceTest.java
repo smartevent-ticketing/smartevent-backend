@@ -13,6 +13,7 @@ import com.smartevent.modules.payment.dto.request.CreatePaymentRequest;
 import com.smartevent.modules.payment.dto.response.PaymentResponse;
 import com.smartevent.modules.payment.dto.response.VNPayIpnResponse;
 import com.smartevent.modules.payment.entity.Payment;
+import com.smartevent.modules.payment.exception.PaymentException;
 import com.smartevent.modules.payment.repository.PaymentRepository;
 import com.smartevent.modules.payment.repository.PaymentWebhookEventRepository;
 import com.smartevent.modules.payment.service.impl.PaymentCompletionService;
@@ -125,6 +126,15 @@ class PaymentServiceTest {
         assertNotNull(response);
         assertEquals(PaymentStatus.INITIATED, response.status());
         assertNotNull(response.paymentUrl());
+    }
+
+    @Test
+    void rejectsUnsupportedGatewayWithoutCreatingPaymentRecord() {
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(pendingOrder));
+
+        assertThrows(PaymentException.class, () -> paymentService.createPayment(userId,
+                new CreatePaymentRequest(orderId, PaymentMethod.MOMO, null), servletRequest));
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

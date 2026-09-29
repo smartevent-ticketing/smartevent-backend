@@ -41,6 +41,10 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse createOrderFromReservation(UUID currentUserId, CreateOrderRequest request) {
+        PaymentMethod paymentMethod = request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.VNPAY;
+        if (paymentMethod != PaymentMethod.VNPAY) {
+            throw new OrderingException(ErrorCode.BUSINESS_RULE_VIOLATION, "Hiện chỉ hỗ trợ thanh toán qua VNPay");
+        }
         // 1. Kiểm tra Reservation tồn tại và hợp lệ
         var reservation = reservationCheckoutService.lockSnapshot(request.reservationId())
                 .orElseThrow(() -> new OrderingException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy phiên giữ chỗ"));
@@ -58,6 +62,11 @@ public class OrderServiceImpl implements OrderService {
         if (existingOrderOpt.isPresent()) {
             Order existingOrder = existingOrderOpt.get();
             if (existingOrder.isPendingPayment() && !existingOrder.isExpired()) {
+                if (existingOrder.getSelectedPaymentMethod() != null
+                        && existingOrder.getSelectedPaymentMethod() != PaymentMethod.VNPAY) {
+                    throw new OrderingException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                            "Đơn hàng cũ dùng phương thức thanh toán chưa được hỗ trợ");
+                }
                 log.info("Tái sử dụng đơn hàng cũ {} cho phiên giữ chỗ {}", existingOrder.getOrderCode(), reservation.id());
                 return orderQueryService.toResponse(existingOrder);
             }
@@ -78,7 +87,6 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal totalAmount = subtotal.subtract(discountAmount).add(feeAmount);
         // 4. Sinh mã đơn hàng duy nhất (ORD-yyyyMMdd-XXXXXX)
         String orderCode = generateUniqueOrderCode();
-        PaymentMethod paymentMethod = request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.VNPAY;
         Order order = new Order(
                 currentUserId,
                 reservation.id(),
