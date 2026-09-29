@@ -8,17 +8,24 @@ import com.smartevent.config.VNPayProperties;
 import com.smartevent.infrastructure.security.JwtTokenProvider;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import com.smartevent.modules.event.dto.request.CreateEventSetupRequest;
+import com.smartevent.modules.event.dto.request.CompleteDraftSetupRequest;
 import com.smartevent.modules.event.dto.request.EventAreaRequest;
 import com.smartevent.modules.event.entity.*;
 import com.smartevent.modules.event.repository.*;
+import com.smartevent.modules.event.dto.response.EventSeatResponse;
 import com.smartevent.modules.event.service.EventAccessPolicy;
+import com.smartevent.modules.event.service.EventSeatService;
 import com.smartevent.modules.event.service.EventSetupService;
+import com.smartevent.modules.event.service.EventService;
 import com.smartevent.modules.event.service.impl.*;
+import com.smartevent.modules.reservation.exception.ReservationException;
 import com.smartevent.modules.identity.dto.request.RefreshTokenRequest;
 import com.smartevent.modules.identity.entity.*;
 import com.smartevent.modules.identity.repository.*;
 import com.smartevent.modules.identity.service.AuthService;
+import com.smartevent.modules.identity.service.AdminUserService;
 import com.smartevent.modules.identity.service.impl.AuthServiceImpl;
+import com.smartevent.modules.identity.service.impl.AdminUserServiceImpl;
 import com.smartevent.modules.invoice.service.InvoiceService;
 import com.smartevent.modules.ordering.dto.request.CreateOrderRequest;
 import com.smartevent.modules.ordering.dto.response.OrderResponse;
@@ -31,10 +38,12 @@ import com.smartevent.modules.outbox.repository.OutboxEventRepository;
 import com.smartevent.modules.payment.service.*;
 import com.smartevent.modules.payment.service.impl.*;
 import com.smartevent.modules.reservation.dto.request.*;
+import com.smartevent.modules.reservation.repository.ReservationRepository;
 import com.smartevent.modules.reservation.service.*;
 import com.smartevent.modules.reservation.service.impl.*;
 import com.smartevent.modules.storage.entity.FileEntity;
 import com.smartevent.modules.storage.repository.FileRepository;
+import com.smartevent.modules.storage.service.StorageService;
 import com.smartevent.modules.ticket.dto.request.*;
 import com.smartevent.modules.ticket.dto.response.*;
 import com.smartevent.modules.ticket.service.*;
@@ -103,6 +112,32 @@ class BackendPostgresTest {
         return bean(UserRepository.class).save(new User(UUID.randomUUID()+"@review.invalid", "unused-test-hash", "Review user", null));
     }
 
+    @Test void adminUserRoleGrantPersistsAndSearchListsRoles() {
+        String email = "role-" + UUID.randomUUID() + "@review.invalid";
+        UUID userId = tx.execute(status -> {
+            User account = new User(email, "unused-test-hash", "Role target", null);
+            account.addRole(bean(RoleRepository.class).findByName("CUSTOMER").orElseThrow());
+            return bean(UserRepository.class).save(account).getId();
+        });
+
+        AdminUserService service = bean(AdminUserService.class);
+        var unfiltered = service.listUsers(null, 0, 20);
+        assertTrue(unfiltered.totalElements() >= 1);
+        assertFalse(unfiltered.content().isEmpty());
+        var before = service.listUsers(email, 0, 20);
+        assertEquals(1, before.totalElements());
+        assertEquals(Set.of("CUSTOMER"), before.content().get(0).roles());
+
+        var granted = service.grantRole(userId, "ORGANIZER", UUID.randomUUID());
+        assertEquals(Set.of("CUSTOMER", "ORGANIZER"), granted.roles());
+        service.grantRole(userId, "ORGANIZER", UUID.randomUUID());
+        assertEquals(1L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = ? AND r.name = 'ORGANIZER'",
+                Long.class, userId));
+        assertEquals(Set.of("CUSTOMER", "ORGANIZER"),
+                bean(UserRepository.class).findByIdWithRoles(userId).orElseThrow().getRoleNames());
+    }
+
     Fixture fixture() {
         return tx.execute(status -> {
             User organizer = user(), buyer = user();
@@ -120,6 +155,70 @@ class BackendPostgresTest {
             bean(InventoryCounterRepository.class).save(new InventoryCounter(event.getId(), area.getId(), type.getId(), phase.getId(), 100));
             return new Fixture(event.getId(), area.getId(), type.getId(), phase.getId(), organizer, buyer);
         });
+    }
+
+    @Test void publishedSearchFiltersVenueCityCategoryAndPaginates() {
+        Fixture first = fixture(), second = fixture();
+        UUID categoryId = tx.execute(status -> {
+            Category category = bean(CategoryRepository.class).save(
+                    new Category("Music", UUID.randomUUID().toString(), null));
+            for (Fixture fixture : List.of(first, second)) {
+                Event event = bean(EventRepository.class).findById(fixture.event()).orElseThrow();
+                Venue venue = bean(VenueRepository.class).findById(event.getVenueId()).orElseThrow();
+                venue.setName("Sao Theatre");
+                venue.setCity("Ha Noi");
+                bean(VenueRepository.class).save(venue);
+                bean(EventCategoryRepository.class).save(new EventCategory(event.getId(), category.getId()));
+            }
+            return category.getId();
+        });
+
+        var query = bean(EventQueryService.class);
+        var firstPage = query.searchPublishedEvents(org.springframework.data.domain.PageRequest.of(0, 1),
+                "sao theatre", "ha noi", categoryId);
+        var secondPage = query.searchPublishedEvents(org.springframework.data.domain.PageRequest.of(1, 1),
+                "sao theatre", "ha noi", categoryId);
+        assertEquals(2, firstPage.totalElements());
+        assertEquals(1, firstPage.content().size());
+        assertEquals(1, secondPage.content().size());
+        assertNotEquals(firstPage.content().get(0).id(), secondPage.content().get(0).id());
+        assertEquals(0, query.searchPublishedEvents(org.springframework.data.domain.PageRequest.of(0, 10),
+                "sao theatre", "Ho Chi Minh", categoryId).totalElements());
+    }
+
+    @Test void publicListingExcludesEndedEventsBeforePagination() {
+        String marker = "Timeline " + UUID.randomUUID();
+        Instant now = Instant.now();
+        List<UUID> ids = tx.execute(status -> {
+            User organizer = user();
+            Venue venue = bean(VenueRepository.class).save(
+                    new Venue("Timeline venue", "Test address", "Test city", null, null, 100));
+            List<UUID> created = new ArrayList<>();
+            for (int index = 0; index < 3; index++) {
+                Event event = new Event();
+                event.setOrganizerId(organizer.getId());
+                event.setVenueId(venue.getId());
+                event.setName(marker + " " + index);
+                event.setSlug(UUID.randomUUID().toString());
+                event.setStatus(EventStatus.PUBLISHED);
+                event.setStartTime(index == 0 ? now.minusSeconds(7200)
+                        : index == 1 ? now.minusSeconds(1800) : now.plusSeconds(86400));
+                event.setEndTime(index == 0 ? now.minusSeconds(3600)
+                        : index == 1 ? now.plusSeconds(1800) : now.plusSeconds(90000));
+                created.add(bean(EventRepository.class).save(event).getId());
+            }
+            return created;
+        });
+
+        var query = bean(EventQueryService.class);
+        var page = org.springframework.data.domain.PageRequest.of(0, 1,
+                org.springframework.data.domain.Sort.by("startTime"));
+        var firstPage = query.searchPublishedEvents(page, marker, null, null);
+        var secondPage = query.searchPublishedEvents(page.next(), marker, null, null);
+        assertEquals(2, firstPage.totalElements());
+        assertEquals(2, firstPage.totalPages());
+        assertEquals(List.of(ids.get(1)), firstPage.content().stream().map(event -> event.id()).toList());
+        assertEquals(List.of(ids.get(2)), secondPage.content().stream().map(event -> event.id()).toList());
     }
 
     UUID reserve(Fixture f) {
@@ -209,6 +308,37 @@ class BackendPostgresTest {
             assertEquals(before.get(table), jdbc.queryForObject("select count(*) from " + table, Long.class),
                     "Partial setup must not remain in " + table);
         }
+    }
+
+    @Test void completingDraftCommitsOnceAndRetryDoesNotDuplicateTiers() {
+        User organizer = user();
+        var request = setupRequest(10);
+        UUID eventId = bean(EventService.class).createEvent(organizer.getId(), request.event()).id();
+        var completion = new CompleteDraftSetupRequest(request.tiers());
+
+        var submitted = bean(EventSetupService.class).completeDraftAndSubmit(eventId, organizer.getId(), completion);
+        var retried = bean(EventSetupService.class).completeDraftAndSubmit(eventId, organizer.getId(), completion);
+
+        assertEquals(EventStatus.PENDING_APPROVAL, submitted.status());
+        assertEquals(EventStatus.PENDING_APPROVAL, retried.status());
+        assertEquals(2L, bean(EventAreaRepository.class).countByEventId(eventId));
+        assertEquals(2L, bean(TicketTypeRepository.class).countByEventId(eventId));
+        assertEquals(2L, bean(TicketSalePhaseRepository.class).countByEventId(eventId));
+    }
+
+    @Test void failedDraftCompletionRollsBackTiersButKeepsDraftAndBanner() {
+        User organizer = user();
+        var request = setupRequest(100); // First tier fits; combined capacity exceeds the venue.
+        UUID eventId = bean(EventService.class).createEvent(organizer.getId(), request.event()).id();
+
+        assertThrows(BusinessException.class, () -> bean(EventSetupService.class).completeDraftAndSubmit(
+                eventId, organizer.getId(), new CompleteDraftSetupRequest(request.tiers())));
+
+        assertEquals("DRAFT", jdbc.queryForObject("select status from events where id=?", String.class, eventId));
+        assertEquals(0L, bean(EventAreaRepository.class).countByEventId(eventId));
+        assertEquals(0L, bean(TicketTypeRepository.class).countByEventId(eventId));
+        assertEquals(0L, bean(TicketSalePhaseRepository.class).countByEventId(eventId));
+        assertEquals(1L, bean(EventFileRepository.class).countByEventIdAndFileType(eventId, EventFileType.BANNER));
     }
 
     @Test void concurrentCheckoutCreatesExactlyOneOrder() throws Exception {
@@ -346,6 +476,191 @@ class BackendPostgresTest {
         }
     }
 
+    @Test void eventSetupPersistsMaxTicketsPerUser() {
+        User organizer = user();
+        Venue venue = bean(VenueRepository.class).save(new Venue("Limit venue", "Test address", "Test city", null, null, 100));
+        Category category = bean(CategoryRepository.class).save(new Category("Limit category", UUID.randomUUID().toString(), null));
+        UUID bannerId = bean(FileRepository.class).save(new FileEntity(null, "review-bucket",
+                "review/banner-" + UUID.randomUUID() + ".png", "banner.png", "image/png", 100L,
+                null, FileVisibility.PUBLIC)).getId();
+        var req = new CreateEventSetupRequest(
+                new CreateEventRequest("Setup Limit " + UUID.randomUUID(), null, venue.getId(),
+                        Instant.now().plusSeconds(86400), Instant.now().plusSeconds(90000), "Test city",
+                        List.of(category.getId()), bannerId, null, false, null, null, false, 50, 4),
+                List.of(new CreateEventSetupRequest.Tier("Standing", AreaType.STANDING, new BigDecimal("200000"), 10)));
+
+        var response = bean(EventSetupService.class).createAndSubmit(organizer.getId(), req);
+        assertEquals(4, response.maxTicketsPerUser());
+        assertEquals(4, jdbc.queryForObject("select max_tickets_per_user from events where id=?", Integer.class, response.id()));
+    }
+
+    @Test void eventLevelLimitBlocksExcessTicketsAcrossMultipleTiers() {
+        var setup = tx.execute(status -> {
+            User organizer = user(), buyer = user();
+            Venue venue = bean(VenueRepository.class).save(new Venue("Limit Venue 2", "Address", "City", null, null, 200));
+            Event event = new Event();
+            event.setOrganizerId(organizer.getId());
+            event.setVenueId(venue.getId());
+            event.setName("Anti Scalping Event " + UUID.randomUUID());
+            event.setSlug(UUID.randomUUID().toString());
+            event.setStartTime(Instant.now().plusSeconds(86400));
+            event.setEndTime(Instant.now().plusSeconds(90000));
+            event.setStatus(EventStatus.PUBLISHED);
+            event.setMaxTicketsPerUser(3);
+            event = bean(EventRepository.class).save(event);
+
+            EventArea area1 = bean(EventAreaRepository.class).save(new EventArea(event.getId(), "VIP Area", AreaType.STANDING, 50, 0, null));
+            TicketType type1 = bean(TicketTypeRepository.class).save(new TicketType(event.getId(), area1.getId(), "VIP", null, "ACTIVE"));
+            TicketSalePhase phase1 = bean(TicketSalePhaseRepository.class).save(new TicketSalePhase(type1.getId(), "Phase VIP",
+                    new BigDecimal("1000000"), 50, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600), 4, null, SalePhaseStatus.ACTIVE));
+            bean(InventoryCounterRepository.class).save(new InventoryCounter(event.getId(), area1.getId(), type1.getId(), phase1.getId(), 50));
+
+            EventArea area2 = bean(EventAreaRepository.class).save(new EventArea(event.getId(), "Standard Area", AreaType.STANDING, 50, 1, null));
+            TicketType type2 = bean(TicketTypeRepository.class).save(new TicketType(event.getId(), area2.getId(), "Standard", null, "ACTIVE"));
+            TicketSalePhase phase2 = bean(TicketSalePhaseRepository.class).save(new TicketSalePhase(type2.getId(), "Phase Standard",
+                    new BigDecimal("500000"), 50, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600), 4, null, SalePhaseStatus.ACTIVE));
+            bean(InventoryCounterRepository.class).save(new InventoryCounter(event.getId(), area2.getId(), type2.getId(), phase2.getId(), 50));
+
+            return new Object[] { event, type1, phase1, type2, phase2, buyer };
+        });
+
+        Event event = (Event) setup[0];
+        TicketType type1 = (TicketType) setup[1];
+        TicketSalePhase phase1 = (TicketSalePhase) setup[2];
+        TicketType type2 = (TicketType) setup[3];
+        TicketSalePhase phase2 = (TicketSalePhase) setup[4];
+        User buyer = (User) setup[5];
+
+        var res1 = bean(ReservationService.class).createReservation(buyer.getId(), new CreateReservationRequest(event.getId(),
+                List.of(new ReservationItemRequest(type1.getId(), phase1.getId(), null, 2)), UUID.randomUUID().toString()));
+        var order1 = bean(OrderService.class).createOrderFromReservation(buyer.getId(), new CreateOrderRequest(res1.id(), null, PaymentMethod.VNPAY));
+        assertEquals("00", bean(VNPayCallbackHandler.class).handleVNPayIpn(notification(order1)).rspCode());
+        assertEquals(2, bean(TicketService.class).getMyTickets(buyer.getId()).size());
+
+        var createReservationReq = new CreateReservationRequest(event.getId(),
+                List.of(new ReservationItemRequest(type2.getId(), phase2.getId(), null, 2)), UUID.randomUUID().toString());
+
+        ReservationException ex = assertThrows(ReservationException.class, () ->
+                bean(ReservationService.class).createReservation(buyer.getId(), createReservationReq));
+
+        assertEquals(ErrorCode.EXCEEDED_TICKET_LIMIT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Bạn đã mua giới hạn số vé cho phép"));
+    }
+
+    @Test void concurrentReservationObservesCommittedPurchaseBeforeCheckingEventLimit() throws Exception {
+        Fixture f = fixture();
+        tx.executeWithoutResult(status -> {
+            Event event = bean(EventRepository.class).findById(f.event()).orElseThrow();
+            event.setMaxTicketsPerUser(1);
+        });
+
+        CountDownLatch purchaseReady = new CountDownLatch(1);
+        CountDownLatch allowCommit = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(() -> tx.executeWithoutResult(status -> {
+                var reservation = bean(ReservationService.class).createReservation(f.buyer().getId(),
+                        new CreateReservationRequest(f.event(),
+                                List.of(new ReservationItemRequest(f.type(), f.phase(), null, 1)),
+                                UUID.randomUUID().toString()));
+                bean(ReservationRepository.class).flush();
+                assertTrue(bean(ReservationService.class).confirmReservation(reservation.id()));
+                purchaseReady.countDown();
+                try {
+                    assertTrue(allowCommit.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(ex);
+                }
+            }));
+
+            assertTrue(purchaseReady.await(10, TimeUnit.SECONDS));
+            Future<Object> second = pool.submit(() -> {
+                try {
+                    return bean(ReservationService.class).createReservation(f.buyer().getId(),
+                            new CreateReservationRequest(f.event(),
+                                    List.of(new ReservationItemRequest(f.type(), f.phase(), null, 1)),
+                                    UUID.randomUUID().toString()));
+                } catch (ReservationException ex) {
+                    return ex;
+                }
+            });
+
+            // The first transaction has moved HELD to PURCHASED but has not committed yet.
+            // The second request must wait for its buyer/event lock instead of reading zero.
+            Thread.sleep(200);
+            assertFalse(second.isDone());
+            allowCommit.countDown();
+            first.get(10, TimeUnit.SECONDS);
+
+            ReservationException denied = assertInstanceOf(ReservationException.class,
+                    second.get(10, TimeUnit.SECONDS));
+            assertEquals(ErrorCode.EXCEEDED_TICKET_LIMIT, denied.getErrorCode());
+            assertEquals(1, bean(UserSalePhaseCounterRepository.class)
+                    .countOccupiedTicketsByUserIdAndEventId(f.buyer().getId(), f.event()));
+        } finally {
+            allowCommit.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test void seatMapApiReturnsAllSeatsWithActualStatus() {
+        var setup = tx.execute(status -> {
+            User organizer = user(), buyer = user();
+            Venue venue = bean(VenueRepository.class).save(new Venue("Seatmap Venue", "Address", "City", null, null, 100));
+            Event event = new Event();
+            event.setOrganizerId(organizer.getId());
+            event.setVenueId(venue.getId());
+            event.setName("Seatmap Event " + UUID.randomUUID());
+            event.setSlug(UUID.randomUUID().toString());
+            event.setStartTime(Instant.now().plusSeconds(86400));
+            event.setEndTime(Instant.now().plusSeconds(90000));
+            event.setStatus(EventStatus.PUBLISHED);
+            event = bean(EventRepository.class).save(event);
+
+            EventArea area = bean(EventAreaRepository.class).save(new EventArea(event.getId(), "Seated Area", AreaType.SEATED, 10, 0, null));
+            TicketType type = bean(TicketTypeRepository.class).save(new TicketType(event.getId(), area.getId(), "Seated Type", null, "ACTIVE"));
+            TicketSalePhase phase = bean(TicketSalePhaseRepository.class).save(new TicketSalePhase(type.getId(), "Phase Seated",
+                    new BigDecimal("300000"), 10, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600), 4, null, SalePhaseStatus.ACTIVE));
+            bean(InventoryCounterRepository.class).save(new InventoryCounter(event.getId(), area.getId(), type.getId(), phase.getId(), 10));
+
+            EventSeat s1 = bean(EventSeatRepository.class).save(new EventSeat(area.getId(), "A", "01", "A-01", SeatStatus.AVAILABLE, null));
+            EventSeat s2 = bean(EventSeatRepository.class).save(new EventSeat(area.getId(), "A", "02", "A-02", SeatStatus.AVAILABLE, null));
+            EventSeat s3 = bean(EventSeatRepository.class).save(new EventSeat(area.getId(), "A", "03", "A-03", SeatStatus.AVAILABLE, null));
+
+            return new Object[] { event, area, type, phase, buyer, s1, s2, s3 };
+        });
+
+        Event event = (Event) setup[0];
+        EventArea area = (EventArea) setup[1];
+        TicketType type = (TicketType) setup[2];
+        TicketSalePhase phase = (TicketSalePhase) setup[3];
+        User buyer = (User) setup[4];
+        EventSeat s1 = (EventSeat) setup[5];
+        EventSeat s2 = (EventSeat) setup[6];
+        EventSeat s3 = (EventSeat) setup[7];
+
+        var resHold = bean(ReservationService.class).createReservation(buyer.getId(), new CreateReservationRequest(event.getId(),
+                List.of(new ReservationItemRequest(type.getId(), phase.getId(), s2.getId(), 1)), UUID.randomUUID().toString()));
+        assertNotNull(resHold);
+
+        User buyer2 = user();
+        var resPay = bean(ReservationService.class).createReservation(buyer2.getId(), new CreateReservationRequest(event.getId(),
+                List.of(new ReservationItemRequest(type.getId(), phase.getId(), s3.getId(), 1)), UUID.randomUUID().toString()));
+        var order = bean(OrderService.class).createOrderFromReservation(buyer2.getId(), new CreateOrderRequest(resPay.id(), null, PaymentMethod.VNPAY));
+        assertEquals("00", bean(VNPayCallbackHandler.class).handleVNPayIpn(notification(order)).rspCode());
+
+        List<EventSeatResponse> seatList = bean(EventSeatService.class).getAvailableSeatsByArea(area.getId());
+        assertEquals(3, seatList.size());
+
+        Map<String, SeatStatus> statusMap = new HashMap<>();
+        seatList.forEach(s -> statusMap.put(s.label(), s.status()));
+
+        assertEquals(SeatStatus.AVAILABLE, statusMap.get("A-01"));
+        assertEquals(SeatStatus.HELD, statusMap.get("A-02"));
+        assertEquals(SeatStatus.SOLD, statusMap.get("A-03"));
+    }
+
     @Configuration
     @EnableTransactionManagement(proxyTargetClass=true)
     @EnableJpaRepositories(basePackages="com.smartevent.modules")
@@ -358,7 +673,7 @@ class BackendPostgresTest {
             EventConfigurationValidator.class,EventQueryService.class,EventLifecycleService.class,EventAccessPolicy.class,
             EventAreaServiceImpl.class,TicketTypeServiceImpl.class,AuthServiceImpl.class,OutboxServiceImpl.class,
             EventSetupServiceImpl.class,EventServiceImpl.class,EventCommandService.class,EventSeatServiceImpl.class,
-            TicketSalePhaseServiceImpl.class})
+            TicketSalePhaseServiceImpl.class,AdminUserServiceImpl.class})
     static class TestConfiguration {
         @Bean DataSource dataSource() {
             if (postgres != null)
@@ -387,6 +702,7 @@ class BackendPostgresTest {
         @Bean InvoiceService invoiceService() { return mock(InvoiceService.class); }
         @Bean JwtTokenProvider jwtTokenProvider() { return mock(JwtTokenProvider.class); }
         @Bean PasswordEncoder passwordEncoder() { return mock(PasswordEncoder.class); }
+        @Bean StorageService storageService() { return mock(StorageService.class); }
         @Bean VNPayProperties vnPayProperties() {
             var props=new VNPayProperties(); props.setTmnCode("REVIEW");props.setHashSecret("review-only-signing-key");return props;
         }
