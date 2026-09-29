@@ -229,8 +229,10 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         // Kiểm tra quyền chỉnh sửa
         Event event = getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
 
-        if (event.getStatus() == EventStatus.PUBLISHED
-                && (event.getStartTime() == null || !event.getStartTime().isAfter(Instant.now()))
+        boolean mayStartSales = eventAccessPolicy.canModifyConfiguration(event)
+                || (event.getStatus() == EventStatus.PUBLISHED
+                && event.getStartTime() != null && event.getStartTime().isAfter(Instant.now()));
+        if (!mayStartSales
                 && newStatus != SalePhaseStatus.CLOSED && newStatus != SalePhaseStatus.PAUSED) {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Không thể mở hoặc lên lịch đợt bán sau khi sự kiện bắt đầu");

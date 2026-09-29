@@ -287,6 +287,19 @@ class TicketSalePhaseServiceTest {
     }
 
     @Test
+    @DisplayName("Sự kiện đã hủy không thể kích hoạt đợt bán")
+    void updateStatus_CancelledEvent_RejectsActivation() {
+        sampleEvent.setStatus(EventStatus.CANCELLED);
+        when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.updateStatus(phaseId, organizerId, false, SalePhaseStatus.ACTIVE));
+        assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, ex.getErrorCode());
+    }
+
+    @Test
     @DisplayName("Có thể xóa đợt nháp của sự kiện đã xuất bản trước giờ bắt đầu")
     void deleteSalePhase_PublishedDraftBeforeStart_Succeeds() {
         sampleEvent.setStatus(EventStatus.PUBLISHED);
