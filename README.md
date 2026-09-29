@@ -213,20 +213,43 @@ Tài liệu API chi tiết được cung cấp qua giao diện Swagger UI:
 | **Auth** | `POST` | `/api/v1/auth/register` | Đăng ký tài khoản |
 | | `POST` | `/api/v1/auth/login` | Đăng nhập hệ thống (Rate limit: 5 req/min) |
 | | `POST` | `/api/v1/auth/refresh` | Làm mới access token |
-| **Events** | `GET` | `/api/v1/events` | Danh sách sự kiện công khai |
-| | `POST` | `/api/v1/events/setup` | Thiết lập sự kiện, địa điểm, khu vực, hạng vé |
+| **Events** | `GET` | `/api/v1/events` | Danh sách sự kiện công khai; lọc bằng `q`, `city`, `categoryId` và phân trang |
+| | `POST` | `/api/v1/events/setup` | Tạo sự kiện và cấu hình vé trong một giao dịch (dùng khi đã có file ID) |
+| | `POST` | `/api/v1/events/{eventId}/complete-setup` | Cấu hình vé cho bản nháp đã tải ảnh rồi gửi duyệt trong một giao dịch; gửi lại an toàn nếu đã chờ duyệt |
 | | `POST` | `/api/v1/events/{id}/submit` | Gửi yêu cầu duyệt sự kiện |
+| | `GET` | `/api/v1/events/{eventId}/my-counter` | Số vé đã giữ hoặc mua của tài khoản tại sự kiện |
 | **Tickets** | `POST` | `/api/v1/reservations` | Giữ chỗ có thời hạn (chống giữ trùng) |
 | | `POST` | `/api/v1/orders` | Khởi tạo đơn hàng từ chỗ đã giữ |
 | | `GET` | `/api/v1/tickets/my-tickets` | Danh sách vé cá nhân của người dùng |
+| | `GET` | `/api/v1/sale-phases/{phaseId}/my-counter` | Số vé đã giữ hoặc mua của tài khoản trong đợt bán |
 | **Payment**| `POST` | `/api/v1/payments/create-url` | Tạo đường dẫn thanh toán qua VNPay |
 | | `GET` | `/api/v1/payments/vnpay/return` | Xử lý redirect sau thanh toán |
 | | `GET` | `/api/v1/payments/vnpay/ipn` | Webhook IPN nhận kết quả thanh toán từ VNPay |
+| **Refund support** | `GET` | `/api/v1/orders/{orderId}/refund-review` | Xem hồ sơ hỗ trợ hoàn tiền của chính người mua |
+| | `POST` | `/api/v1/orders/{orderId}/refund-review` | Người mua gửi yêu cầu để Admin xem xét; không tự hoàn tiền |
 | **Check-in**| `POST` | `/api/v1/checkin/scan` | Quét mã QR check-in vé tại cổng |
 | **Admin** | `GET` | `/api/v1/admin/payment-refund-reviews` | Danh sách hồ sơ cần đối soát hoàn tiền |
+| | `GET` | `/api/v1/admin/users` | Tìm kiếm và phân trang tài khoản (chỉ Admin) |
+| | `POST` | `/api/v1/admin/users/{userId}/roles` | Cấp thêm role `CUSTOMER`, `ORGANIZER` hoặc `ADMIN` (chỉ Admin) |
 | | `PATCH`| `/api/v1/admin/payment-refund-reviews/{id}` | Cập nhật kết quả đối soát & chứng từ hoàn |
 | | `GET` | `/api/v1/admin/outbox-events` | Giám sát hàng đợi sự kiện Outbox |
 | | `POST` | `/api/v1/admin/outbox-events/{id}/retry` | Kích hoạt retry sự kiện Outbox thủ công |
+
+### Giới hạn vé và đối soát hoàn tiền
+
+`maxTicketsPerUser` là giới hạn tùy chọn ở cấp sự kiện, tính tổng vé đang giữ và đã mua chưa hoàn vé trên mọi hạng vé, mọi đợt bán. Giới hạn riêng của từng đợt bán vẫn được áp dụng. Các yêu cầu của cùng người mua và sự kiện được tuần tự hóa trong một giao dịch PostgreSQL; người mua khác vẫn có thể đặt vé song song. Khi cập nhật sự kiện, bỏ qua trường này sẽ giữ nguyên cấu hình; gửi `clearMaxTicketsPerUser: true` để bỏ giới hạn.
+
+API `GET /api/v1/areas/{areaId}/seats/available` hiện trả sơ đồ ghế với trạng thái `AVAILABLE`, `HELD`, `SOLD` hoặc `BLOCKED`. Chỉ ghế `AVAILABLE` được phép chọn; máy chủ kiểm tra lại trạng thái khi giữ chỗ.
+
+Danh sách ghế quản lý được phân trang theo hàng và số ghế. Địa điểm là dữ liệu dùng chung: Organizer có thể tạo địa điểm mới để khai báo sự kiện, nhưng chỉ Admin được cập nhật hoặc xóa địa điểm đã có.
+
+Hồ sơ `payment-refund-reviews` chỉ ghi nhận quyết định và chứng từ đối soát tiền do Admin cập nhật. Nó không tự hoàn tiền qua VNPay, thu hồi vé, hay giải phóng hạn mức mua vé. Những thao tác liên quan đến vé cần một quy trình hoàn vé riêng để tránh thay đổi quyền sử dụng vé từ một hồ sơ tài chính.
+
+Đơn hàng và yêu cầu thanh toán hiện chỉ nhận `paymentMethod: VNPAY`; các giá trị enum còn lại được giữ cho tương thích dữ liệu cũ nhưng bị từ chối trước khi tạo đơn hoặc bản ghi thanh toán mới.
+
+Wizard tạo sự kiện lưu bản nháp và ảnh trước. Lệnh `complete-setup` sau đó tạo toàn bộ khu vé, ghế, hạng vé và đợt bán trong một transaction PostgreSQL rồi gửi duyệt. Nếu một bước lỗi, bản nháp và ảnh vẫn còn nhưng cấu hình vé của lần gửi đó được hoàn tác; bản nháp có cấu hình vé sẵn phải được kiểm tra trong màn hình quản lý trước khi gửi lại.
+
+Các API `ticket_phase_rules` hiện chỉ lưu và trả về cặp `ruleType`/`ruleValue`; luồng giữ chỗ chưa áp dụng các quy tắc này. Cần định nghĩa từng loại quy tắc, cách kiểm tra và thông báo lỗi trước khi dùng để giới hạn người mua. Hệ thống chưa có API hộp thư thông báo trong ứng dụng; các thông báo email và trạng thái outbox là hai luồng hiện có.
 
 ---
 
