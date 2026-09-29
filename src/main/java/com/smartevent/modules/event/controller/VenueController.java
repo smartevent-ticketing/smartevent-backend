@@ -50,8 +50,8 @@ public class VenueController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','ORGANIZER')")
-    @Operation(summary = "Cập nhật thông tin địa điểm theo ID (Yêu cầu ADMIN hoặc ORGANIZER)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Cập nhật thông tin địa điểm theo ID (Yêu cầu ADMIN)")
     public ApiResponse<VenueResponse> updateVenue(
             @PathVariable UUID id,
             @Valid @RequestBody VenueRequest request)
