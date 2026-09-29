@@ -139,6 +139,68 @@ class TicketSalePhaseServiceTest {
     }
 
     @Test
+    @DisplayName("Organizer tạo đợt mới cho sự kiện đang mở bán khi còn sức chứa")
+    void createSalePhase_PublishedBeforeStart_Success() {
+        sampleEvent.setStatus(EventStatus.PUBLISHED);
+        sampleEvent.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        TicketSalePhaseRequest request = new TicketSalePhaseRequest(
+                "Đợt bổ sung", BigDecimal.valueOf(600000), 100,
+                Instant.now().plus(1, ChronoUnit.DAYS), Instant.now().plus(2, ChronoUnit.DAYS),
+                4, 2, SalePhaseStatus.DRAFT);
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
+        when(ticketSalePhaseRepository.sumQuantityByEventAreaIdExcluding(areaId, null)).thenReturn(900);
+        when(ticketSalePhaseRepository.save(any(TicketSalePhase.class))).thenAnswer(invocation -> {
+            TicketSalePhase phase = invocation.getArgument(0);
+            phase.setId(phaseId);
+            return phase;
+        });
+
+        TicketSalePhaseResponse response = ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request);
+
+        assertEquals("Đợt bổ sung", response.name());
+        verify(inventoryService).initCounter(eq(eventId), eq(areaId), eq(ticketTypeId), any(), eq(100));
+    }
+
+    @Test
+    @DisplayName("Sự kiện đang mở bán nhưng đã bắt đầu không được tạo đợt mới")
+    void createSalePhase_PublishedAfterStart_Rejects() {
+        sampleEvent.setStatus(EventStatus.PUBLISHED);
+        sampleEvent.setStartTime(Instant.now().minus(1, ChronoUnit.MINUTES));
+        TicketSalePhaseRequest request = new TicketSalePhaseRequest(
+                "Đợt muộn", BigDecimal.valueOf(600000), 100,
+                Instant.now().plus(1, ChronoUnit.HOURS), Instant.now().plus(2, ChronoUnit.HOURS),
+                4, 2, SalePhaseStatus.DRAFT);
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request));
+        assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, ex.getErrorCode());
+        verify(ticketSalePhaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Sự kiện đang mở bán không thể phân bổ vượt sức chứa còn lại")
+    void createSalePhase_PublishedWithoutCapacity_Rejects() {
+        sampleEvent.setStatus(EventStatus.PUBLISHED);
+        sampleEvent.setStartTime(Instant.now().plus(7, ChronoUnit.DAYS));
+        TicketSalePhaseRequest request = new TicketSalePhaseRequest(
+                "Đợt bổ sung", BigDecimal.valueOf(600000), 100,
+                Instant.now().plus(1, ChronoUnit.DAYS), Instant.now().plus(2, ChronoUnit.DAYS),
+                4, 2, SalePhaseStatus.DRAFT);
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+        when(eventAreaRepository.findById(areaId)).thenReturn(Optional.of(sampleArea));
+        when(ticketSalePhaseRepository.sumQuantityByEventAreaIdExcluding(areaId, null)).thenReturn(950);
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.createSalePhase(ticketTypeId, organizerId, false, request));
+        assertEquals(ErrorCode.PHASE_CAPACITY_EXCEEDED, ex.getErrorCode());
+    }
+
+    @Test
     @DisplayName("Ném lỗi SALE_PHASE_INVALID_TIME khi thời gian kết thúc trước thời gian bắt đầu")
     void createSalePhase_InvalidTime_ThrowsException() {
         Instant start = Instant.now().plus(5, ChronoUnit.DAYS);
@@ -207,6 +269,34 @@ class TicketSalePhaseServiceTest {
 
         assertNotNull(response);
         verify(ticketSalePhaseRepository, times(1)).save(samplePhase);
+    }
+
+    @Test
+    @DisplayName("Đợt bán không được kích hoạt sau khi sự kiện đã bắt đầu")
+    void updateStatus_PublishedAfterStart_RejectsActivation() {
+        sampleEvent.setStatus(EventStatus.PUBLISHED);
+        sampleEvent.setStartTime(Instant.now().minus(1, ChronoUnit.MINUTES));
+        when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+
+        TicketingException ex = assertThrows(TicketingException.class, () ->
+                ticketSalePhaseService.updateStatus(phaseId, organizerId, false, SalePhaseStatus.ACTIVE));
+        assertEquals(ErrorCode.BUSINESS_RULE_VIOLATION, ex.getErrorCode());
+        verify(ticketSalePhaseRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Có thể xóa đợt nháp của sự kiện đã xuất bản trước giờ bắt đầu")
+    void deleteSalePhase_PublishedDraftBeforeStart_Succeeds() {
+        sampleEvent.setStatus(EventStatus.PUBLISHED);
+        when(ticketSalePhaseRepository.findById(phaseId)).thenReturn(Optional.of(samplePhase));
+        when(ticketTypeRepository.findById(ticketTypeId)).thenReturn(Optional.of(sampleTicketType));
+        when(eventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(sampleEvent));
+
+        ticketSalePhaseService.deleteSalePhase(phaseId, organizerId, false);
+
+        verify(ticketSalePhaseRepository).delete(samplePhase);
     }
 
     @Test

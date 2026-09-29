@@ -49,6 +49,7 @@ import com.smartevent.modules.ticket.dto.response.*;
 import com.smartevent.modules.ticket.service.*;
 import com.smartevent.modules.ticket.service.impl.*;
 import com.smartevent.modules.ticketing.dto.request.TicketTypeRequest;
+import com.smartevent.modules.ticketing.dto.request.TicketSalePhaseRequest;
 import com.smartevent.modules.ticketing.entity.*;
 import com.smartevent.modules.ticketing.repository.*;
 import com.smartevent.modules.ticketing.service.impl.*;
@@ -155,6 +156,32 @@ class BackendPostgresTest {
             bean(InventoryCounterRepository.class).save(new InventoryCounter(event.getId(), area.getId(), type.getId(), phase.getId(), 100));
             return new Fixture(event.getId(), area.getId(), type.getId(), phase.getId(), organizer, buyer);
         });
+    }
+
+    @Test void closedPhaseKeepsSoldAndHeldCapacityForNewSalePhase() {
+        Fixture fixture = fixture();
+        tx.executeWithoutResult(status -> {
+            TicketSalePhase oldPhase = bean(TicketSalePhaseRepository.class).findById(fixture.phase()).orElseThrow();
+            oldPhase.setStatus(SalePhaseStatus.CLOSED);
+            bean(TicketSalePhaseRepository.class).save(oldPhase);
+            InventoryCounter counter = bean(InventoryCounterRepository.class).findBySalePhaseId(fixture.phase()).orElseThrow();
+            counter.setSoldQuantity(3);
+            counter.setHeldQuantity(4);
+            bean(InventoryCounterRepository.class).save(counter);
+        });
+
+        assertEquals(7, bean(TicketSalePhaseRepository.class)
+                .sumQuantityByEventAreaIdExcluding(fixture.area(), null));
+
+        Instant start = Instant.now().plusSeconds(60);
+        Instant end = Instant.now().plusSeconds(3600);
+        var newPhase = bean(TicketSalePhaseServiceImpl.class).createSalePhase(
+                fixture.type(), fixture.organizer().getId(), false,
+                new TicketSalePhaseRequest("Bổ sung", new BigDecimal("600000"), 93,
+                        start, end, 4, null, SalePhaseStatus.DRAFT));
+        assertEquals(93, newPhase.quantity());
+        assertEquals(100, bean(TicketSalePhaseRepository.class)
+                .sumQuantityByEventAreaIdExcluding(fixture.area(), null));
     }
 
     @Test void publishedSearchFiltersVenueCityCategoryAndPaginates() {

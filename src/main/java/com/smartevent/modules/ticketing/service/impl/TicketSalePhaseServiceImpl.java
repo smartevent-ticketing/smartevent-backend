@@ -1,6 +1,7 @@
 package com.smartevent.modules.ticketing.service.impl;
 
 import com.smartevent.common.enums.SalePhaseStatus;
+import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
 import com.smartevent.modules.event.entity.Event;
 import com.smartevent.modules.event.entity.EventArea;
@@ -21,6 +22,7 @@ import com.smartevent.modules.ticketing.repository.TicketTypeRepository;
 import com.smartevent.modules.ticketing.service.InventoryService;
 import com.smartevent.modules.ticketing.service.TicketSalePhaseService;
 import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +52,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
 
         // 2. Tấm khiên 1: Xác thực sở hữu sự kiện & State Guard
         Event event = getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
-        validateEventStateForModification(event);
+        validateEventStateForNewPhase(event);
 
         // 3. Tấm khiên 2: Time Guard
         if (!request.saleEndAt().isAfter(request.saleStartAt())) {
@@ -58,6 +60,9 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         }
         if (event.getEndTime() != null && request.saleEndAt().isAfter(event.getEndTime())) {
             throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán không được sau khi sự kiện kết thúc");
+        }
+        if (event.getStatus() == EventStatus.PUBLISHED && !request.saleEndAt().isAfter(Instant.now())) {
+            throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Đợt mở bán mới phải kết thúc trong tương lai");
         }
         // Kiểm tra chồng lấn thời gian cùng hạng vé
         if (ticketSalePhaseRepository.existsOverlappingPhase(ticketTypeId, null, request.saleStartAt(), request.saleEndAt())) {
@@ -164,7 +169,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
                 .orElseThrow(() -> new TicketingException(ErrorCode.TICKET_TYPE_NOT_FOUND, "Không tìm thấy loại vé"));
 
         Event event = getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
-        validateEventStateForModification(event);
+        validateEventStateForExistingPhase(event, phase);
 
         if (!request.saleEndAt().isAfter(request.saleStartAt())) {
             throw new TicketingException(ErrorCode.SALE_PHASE_INVALID_TIME, "Thời gian kết thúc mở bán phải sau thời gian bắt đầu");
@@ -222,7 +227,14 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
         TicketType ticketType = ticketTypeRepository.findById(phase.getTicketTypeId())
                 .orElseThrow(() -> new TicketingException(ErrorCode.TICKET_TYPE_NOT_FOUND, "Không tìm thấy loại vé"));
         // Kiểm tra quyền chỉnh sửa
-        getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
+        Event event = getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
+
+        if (event.getStatus() == EventStatus.PUBLISHED
+                && (event.getStartTime() == null || !event.getStartTime().isAfter(Instant.now()))
+                && newStatus != SalePhaseStatus.CLOSED && newStatus != SalePhaseStatus.PAUSED) {
+            throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "Không thể mở hoặc lên lịch đợt bán sau khi sự kiện bắt đầu");
+        }
 
         // State Machine validation
         validateStateTransition(phase.getStatus(), newStatus);
@@ -248,7 +260,7 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
 
         // Kiểm tra trạng thái sự kiện
         Event event = getEventAndVerifyAccess(ticketType.getEventId(), currentUserId, isAdmin);
-        validateEventStateForModification(event);
+        validateEventStateForExistingPhase(event, phase);
 
         if (phase.getStatus() == SalePhaseStatus.ACTIVE || phase.getStatus() == SalePhaseStatus.SOLD_OUT) {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION, "Không thể xóa đợt bán đang hoạt động hoặc đã bán hết");
@@ -303,6 +315,25 @@ public class TicketSalePhaseServiceImpl implements TicketSalePhaseService {
             throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "Chỉ có thể chỉnh sửa đợt mở bán khi sự kiện ở trạng thái Nháp hoặc Chờ duyệt");
         }
+    }
+
+    private void validateEventStateForNewPhase(Event event) {
+        if (eventAccessPolicy.canModifyConfiguration(event)) return;
+        if (event.getStatus() == EventStatus.PUBLISHED
+                && event.getStartTime() != null
+                && event.getStartTime().isAfter(Instant.now())) return;
+        throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                "Chỉ có thể tạo đợt mở bán trước khi sự kiện bắt đầu");
+    }
+
+    private void validateEventStateForExistingPhase(Event event, TicketSalePhase phase) {
+        if (eventAccessPolicy.canModifyConfiguration(event)) return;
+        if (event.getStatus() == EventStatus.PUBLISHED
+                && event.getStartTime() != null
+                && event.getStartTime().isAfter(Instant.now())
+                && phase.getStatus() == SalePhaseStatus.DRAFT) return;
+        throw new TicketingException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                "Chỉ có thể chỉnh sửa đợt bán nháp trước khi sự kiện bắt đầu");
     }
 
     private void validateStateTransition(SalePhaseStatus currentStatus, SalePhaseStatus newStatus) {

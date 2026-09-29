@@ -37,11 +37,12 @@ public interface TicketSalePhaseRepository extends JpaRepository<TicketSalePhase
     boolean existsByTicketTypeId(UUID ticketTypeId);
 
     // Tính tổng số lượng vé đã cấu hình trên toàn bộ Khán đài (loại trừ đợt đang sửa)
-    // Với đợt CLOSED: Chỉ tính số vé thực tế đã bán, số vé chưa bán được hoàn lại sức chứa khán đài
+    // Với đợt CLOSED: vé đã bán hoặc đang giữ chỗ vẫn chiếm sức chứa khán đài.
     @Query("""
         SELECT COALESCE(SUM(
             CASE 
-                WHEN sp.status = com.smartevent.common.enums.SalePhaseStatus.CLOSED THEN COALESCE(ic.soldQuantity, 0)
+                WHEN sp.status = com.smartevent.common.enums.SalePhaseStatus.CLOSED
+                    THEN COALESCE(ic.soldQuantity, 0) + COALESCE(ic.heldQuantity, 0)
                 ELSE sp.quantity 
             END
         ), 0) FROM TicketSalePhase sp
