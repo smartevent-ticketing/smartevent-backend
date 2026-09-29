@@ -11,6 +11,7 @@ import com.smartevent.modules.event.repository.EventFileRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.VenueRepository;
 import com.smartevent.modules.event.service.impl.EventQueryService;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,8 @@ class EventQueryServiceTest {
         second.setVenueId(venue.getId());
         var page = PageRequest.of(0, 10);
         var ids = List.of(first.getId(), second.getId());
-        when(eventRepository.findByStatus(EventStatus.PUBLISHED, page)).thenReturn(new PageImpl<>(List.of(first, second)));
+        when(eventRepository.findByStatusAndEndTimeAfter(eq(EventStatus.PUBLISHED), any(Instant.class), eq(page)))
+                .thenReturn(new PageImpl<>(List.of(first, second)));
         when(venueRepository.findAllById(List.of(venue.getId()))).thenReturn(List.of(venue));
         when(eventCategoryRepository.findByIdEventIdIn(ids)).thenReturn(List.of(
                 new EventCategory(first.getId(), category.getId()), new EventCategory(second.getId(), category.getId())));
@@ -63,6 +65,7 @@ class EventQueryServiceTest {
         verify(venueRepository, never()).findById(any());
         verify(eventCategoryRepository, never()).findByIdEventId(any());
         verify(eventFileRepository, never()).findByEventIdOrderBySortOrderAsc(any());
+        verify(eventRepository).findByStatusAndEndTimeAfter(eq(EventStatus.PUBLISHED), any(Instant.class), eq(page));
     }
 
     @Test

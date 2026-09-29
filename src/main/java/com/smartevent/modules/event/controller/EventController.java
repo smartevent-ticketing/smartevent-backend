@@ -50,11 +50,14 @@ public class EventController {
     }
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách các sự kiện đã được duyệt và đang mở bán (PUBLISHED)")
+    @Operation(summary = "Lấy danh sách sự kiện đã công bố và chưa kết thúc")
     public ApiResponse<PageResponse<EventResponse>> getPublishedEvents(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) UUID categoryId,
             @PageableDefault(size = 10, sort = "startTime", direction = Sort.Direction.ASC) Pageable pageable
     ) {
-        return ApiResponse.success(eventService.getPublishedEvents(pageable));
+        return ApiResponse.success(eventService.searchPublishedEvents(pageable, q, city, categoryId));
     }
 
     @GetMapping("/my-events")

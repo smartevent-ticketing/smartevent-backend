@@ -30,6 +30,28 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
 
     Page<Event> findByStatus(EventStatus status, Pageable pageable);
 
+    Page<Event> findByStatusAndEndTimeAfter(EventStatus status, Instant now, Pageable pageable);
+
+    @Query("""
+        select e from Event e
+        where e.status = com.smartevent.common.enums.EventStatus.PUBLISHED
+          and e.endTime > :now
+          and (:keyword is null or lower(e.name) like :keyword
+               or lower(coalesce(e.description, '')) like :keyword
+               or exists (select v from Venue v where v.id = e.venueId and lower(v.name) like :keyword))
+          and (:city is null or lower(coalesce(e.city, '')) like :city
+               or exists (select v from Venue v where v.id = e.venueId and lower(v.city) like :city))
+          and (:categoryId is null or exists (select ec from EventCategory ec
+               where ec.id.eventId = e.id and ec.id.categoryId = :categoryId))
+    """)
+    Page<Event> searchPublished(
+            @Param("now") Instant now,
+            @Param("keyword") String keyword,
+            @Param("city") String city,
+            @Param("categoryId") UUID categoryId,
+            Pageable pageable
+    );
+
     Page<Event> findByOrganizerId(UUID organizerId, Pageable pageable);
 
     // Kiểm tra xem Venue đã có sự kiện nào khác diễn ra trong khoảng thời gian này chưa

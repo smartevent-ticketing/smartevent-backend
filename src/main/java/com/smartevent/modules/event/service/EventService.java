@@ -20,6 +20,8 @@ public interface EventService {
 
     PageResponse<EventResponse> getPublishedEvents(Pageable pageable);
 
+    PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId);
+
     PageResponse<EventResponse> getEventsByOrganizer(UUID organizerId, Pageable pageable);
 
     // 7. Ban tổ chức nộp sự kiện chờ Admin phê duyệt

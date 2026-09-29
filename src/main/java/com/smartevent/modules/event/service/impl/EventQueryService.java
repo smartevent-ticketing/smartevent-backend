@@ -16,11 +16,13 @@ import com.smartevent.modules.event.repository.EventCategoryRepository;
 import com.smartevent.modules.event.repository.EventFileRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.VenueRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -67,9 +69,20 @@ public class EventQueryService {
 
     @Transactional(readOnly = true)
     public PageResponse<EventResponse> getPublishedEvents(Pageable pageable) {
-        Page<Event> eventPage = eventRepository.findByStatus(EventStatus.PUBLISHED, pageable);
+        Page<Event> eventPage = eventRepository.findByStatusAndEndTimeAfter(EventStatus.PUBLISHED, Instant.now(), pageable);
 
         return PageResponse.from(eventPage, toResponses(eventPage.getContent()));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId) {
+        Page<Event> eventPage = eventRepository.searchPublished(Instant.now(), searchPattern(keyword), searchPattern(city), categoryId, pageable);
+        return PageResponse.from(eventPage, toResponses(eventPage.getContent()));
+    }
+
+    private String searchPattern(String value) {
+        if (value == null || value.isBlank()) return null;
+        return "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
     }
 
     @Transactional(readOnly = true)

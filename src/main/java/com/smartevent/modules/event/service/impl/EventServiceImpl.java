@@ -49,6 +49,11 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    public PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId) {
+        return eventQueryService.searchPublishedEvents(pageable, keyword, city, categoryId);
+    }
+
+    @Override
     public PageResponse<EventResponse> getEventsByOrganizer(UUID organizerId, Pageable pageable) {
         return eventQueryService.getEventsByOrganizer(organizerId, pageable);
     }
