@@ -194,7 +194,8 @@ class BackendBusinessRegressionTest {
         when(jwt.hashToken("review-token")).thenReturn("review-hash");
         when(refreshTokens.findByTokenHashForUpdate("review-hash")).thenReturn(Optional.of(reused));
         var service = new AuthServiceImpl(mock(UserRepository.class), mock(RoleRepository.class), jwt,
-                refreshTokens, mock(PasswordEncoder.class));
+                refreshTokens, mock(PasswordEncoder.class), mock(com.smartevent.modules.storage.service.StorageService.class),
+                mock(PlatformTransactionManager.class));
         var transactionManager = mock(PlatformTransactionManager.class);
         var transaction = new SimpleTransactionStatus();
         when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transaction);

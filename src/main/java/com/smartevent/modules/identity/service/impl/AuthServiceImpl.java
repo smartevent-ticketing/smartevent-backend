@@ -2,6 +2,7 @@ package com.smartevent.modules.identity.service.impl;
 
 import com.smartevent.common.error.BusinessException;
 import com.smartevent.common.error.ErrorCode;
+import com.smartevent.common.enums.FileVisibility;
 import com.smartevent.infrastructure.security.JwtTokenProvider;
 import com.smartevent.infrastructure.security.UserPrincipal;
 import com.smartevent.modules.identity.dto.request.LoginRequest;
@@ -21,13 +22,24 @@ import com.smartevent.modules.identity.repository.RefreshTokenRepository;
 import com.smartevent.modules.identity.repository.RoleRepository;
 import com.smartevent.modules.identity.repository.UserRepository;
 import com.smartevent.modules.identity.service.AuthService;
+import com.smartevent.modules.storage.dto.response.FileUploadResponse;
+import com.smartevent.modules.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 
 @Slf4j
@@ -42,6 +54,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final StorageService storageService;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
@@ -194,6 +208,66 @@ public class AuthServiceImpl implements AuthService {
                         "Không tìm thấy thông tin người dùng"
                 ));
         return UserProfileResponse.from(user);
+    }
+
+    @Override
+    @Transactional
+    public UserProfileResponse updateAvatar(UUID userId, MultipartFile file) {
+        User user = userRepository.findByIdWithRoles(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Không tìm thấy tài khoản"));
+        validateAvatar(file);
+
+        FileUploadResponse uploaded = storageService.uploadFile(file, userId, "avatars", FileVisibility.PRIVATE);
+        UUID previousAvatarFileId = user.getAvatarFileId();
+        user.setAvatarFileId(uploaded.id());
+        userRepository.save(user);
+        if (previousAvatarFileId != null && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        TransactionTemplate cleanupTransaction = new TransactionTemplate(transactionManager);
+                        cleanupTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                        cleanupTransaction.executeWithoutResult(status -> storageService.deleteFile(previousAvatarFileId, userId));
+                    } catch (RuntimeException e) {
+                        log.warn("Không thể dọn ảnh đại diện cũ {} của người dùng {}", previousAvatarFileId, userId, e);
+                    }
+                }
+            });
+        }
+        return UserProfileResponse.from(user);
+    }
+
+    private void validateAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty() || file.getSize() > 2 * 1024 * 1024) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Ảnh đại diện phải có dung lượng tối đa 2 MB");
+        }
+
+        String contentType = file.getContentType();
+        String fileName = file.getOriginalFilename();
+        String extension = fileName == null ? "" : fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        boolean jpeg = "image/jpeg".equals(contentType) && ("jpg".equals(extension) || "jpeg".equals(extension));
+        boolean png = "image/png".equals(contentType) && "png".equals(extension);
+        boolean webp = "image/webp".equals(contentType) && "webp".equals(extension);
+        if (!jpeg && !png && !webp) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP");
+        }
+
+        try {
+            byte[] signature = file.getInputStream().readNBytes(12);
+            boolean validJpeg = jpeg && signature.length >= 3
+                    && (signature[0] & 0xff) == 0xff && (signature[1] & 0xff) == 0xd8 && (signature[2] & 0xff) == 0xff;
+            boolean validPng = png && signature.length >= 8 && Arrays.equals(
+                    Arrays.copyOf(signature, 8), new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a});
+            boolean validWebp = webp && signature.length >= 12
+                    && signature[0] == 'R' && signature[1] == 'I' && signature[2] == 'F' && signature[3] == 'F'
+                    && signature[8] == 'W' && signature[9] == 'E' && signature[10] == 'B' && signature[11] == 'P';
+            if (!validJpeg && !validPng && !validWebp) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Nội dung ảnh đại diện không hợp lệ");
+            }
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Không thể đọc ảnh đại diện");
+        }
     }
 }
 

@@ -15,7 +15,9 @@ import com.smartevent.modules.identity.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -58,5 +60,13 @@ public class AuthController {
     @Operation(summary = "Lấy thông tin hồ sơ của người dùng hiện tại")
     public ApiResponse<UserProfileResponse> getCurrentUser(@CurrentUser UserPrincipal currentUser) {
         return ApiResponse.success(authService.getProfile(currentUser.getId()));
+    }
+
+    @PutMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Cập nhật ảnh đại diện của người dùng hiện tại")
+    public ApiResponse<UserProfileResponse> updateAvatar(
+            @RequestParam("file") MultipartFile file,
+            @CurrentUser UserPrincipal currentUser) {
+        return ApiResponse.success(authService.updateAvatar(currentUser.getId(), file));
     }
 }

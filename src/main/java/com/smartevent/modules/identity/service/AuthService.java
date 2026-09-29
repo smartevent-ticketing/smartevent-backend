@@ -10,6 +10,7 @@ import com.smartevent.modules.identity.dto.response.UserProfileResponse;
 import com.smartevent.modules.identity.dto.response.UserResponse;
 
 import java.util.UUID;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface AuthService {
 
@@ -22,4 +23,6 @@ public interface AuthService {
     void logout(LogoutRequest request);
 
     UserProfileResponse getProfile(UUID userId);
+
+    UserProfileResponse updateAvatar(UUID userId, MultipartFile file);
 }

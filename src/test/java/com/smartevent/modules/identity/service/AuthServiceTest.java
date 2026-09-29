@@ -2,6 +2,7 @@ package com.smartevent.modules.identity.service;
 
 import com.smartevent.common.error.BusinessException;
 import com.smartevent.common.error.ErrorCode;
+import com.smartevent.common.enums.FileVisibility;
 import com.smartevent.infrastructure.security.JwtTokenProvider;
 import com.smartevent.infrastructure.security.UserPrincipal;
 import com.smartevent.modules.identity.dto.request.LoginRequest;
@@ -19,6 +20,8 @@ import com.smartevent.modules.identity.repository.RefreshTokenRepository;
 import com.smartevent.modules.identity.repository.RoleRepository;
 import com.smartevent.modules.identity.repository.UserRepository;
 import com.smartevent.modules.identity.service.impl.AuthServiceImpl;
+import com.smartevent.modules.storage.dto.response.FileUploadResponse;
+import com.smartevent.modules.storage.service.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -54,6 +59,12 @@ class AuthServiceTest {
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+
+    @Mock
+    private StorageService storageService;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -192,6 +203,37 @@ class AuthServiceTest {
 
         assertNotNull(response);
         assertEquals("user@test.com", response.email());
+    }
+
+    @Test
+    void updateAvatar_SavesPrivateImageForCurrentUser() {
+        UUID userId = UUID.randomUUID();
+        UUID fileId = UUID.randomUUID();
+        mockUser.setId(userId);
+        byte[] png = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00};
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", png);
+        when(userRepository.findByIdWithRoles(userId)).thenReturn(Optional.of(mockUser));
+        when(storageService.uploadFile(file, userId, "avatars", FileVisibility.PRIVATE))
+                .thenReturn(new FileUploadResponse(fileId, "avatar.png", "image/png", (long) png.length,
+                        "https://example.test/avatar", FileVisibility.PRIVATE, Instant.now()));
+
+        UserProfileResponse response = authService.updateAvatar(userId, file);
+
+        assertEquals(fileId, response.avatarFileId());
+        verify(userRepository).save(mockUser);
+    }
+
+    @Test
+    void updateAvatar_RejectsFileWithMismatchedSignatureBeforeUpload() {
+        UUID userId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", "not an image".getBytes());
+        when(userRepository.findByIdWithRoles(userId)).thenReturn(Optional.of(mockUser));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> authService.updateAvatar(userId, file));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, error.getErrorCode());
+        verifyNoInteractions(storageService);
+        verify(userRepository, never()).save(any());
     }
 }
 
