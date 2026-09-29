@@ -16,8 +16,5 @@ public interface VenueService {
 
     VenueResponse getVenueById(UUID id);
 
-    VenueResponse updateVenue(UUID id, VenueRequest request);
-
-    void deleteVenue(UUID id);
 }
 

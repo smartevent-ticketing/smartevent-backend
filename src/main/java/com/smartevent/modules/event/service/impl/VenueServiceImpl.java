@@ -83,48 +83,5 @@ public class VenueServiceImpl implements VenueService {
         return VenueResponse.from(venue);
     }
 
-    @Override
-    @Transactional
-    public VenueResponse updateVenue(UUID id, VenueRequest request) {
-
-        Venue venue = venueRepository.findById(id)
-                .orElseThrow(() -> new EventException(
-                        ErrorCode.RESOURCE_NOT_FOUND,
-                        "Không tìm thấy địa điểm"
-                ));
-
-        boolean isDuplicate = venueRepository.existsByNameAndCity(request.name(), request.city());
-        boolean isSameVenue = venue.getName().equals(request.name()) && venue.getCity().equals(request.city());
-
-        if (isDuplicate && !isSameVenue) {
-            throw new EventException(ErrorCode.BUSINESS_RULE_VIOLATION, "Địa điểm đã tồn tại");
-        }
-
-        venue.setName(request.name());
-        venue.setAddress(request.address());
-        venue.setCity(request.city());
-        venue.setCapacity(request.capacity());
-        venue.setLatitude(request.latitude());
-        venue.setLongitude(request.longitude());
-
-        Venue updateVenue = venueRepository.save(venue);
-
-        return VenueResponse.from(updateVenue);
-
-    }
-
-    @Override
-    @Transactional
-    public void deleteVenue(UUID id) {
-
-        Venue venue = venueRepository.findById(id)
-                .orElseThrow(() -> new EventException(
-                        ErrorCode.RESOURCE_NOT_FOUND,
-                        "Không tìm thấy địa điểm"));
-
-        venue.setStatus("INACTIVE");
-
-        venueRepository.save(venue);
-    }
 }
 

@@ -16,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -89,42 +88,5 @@ class VenueServiceTest {
         assertEquals("Hà Nội", responses.get(0).city());
     }
 
-    @Test
-    @DisplayName("Cập nhật địa điểm thành công khi giữ nguyên tên và thành phố")
-    void updateVenue_SameNameAndCity_AllowsUpdate() {
-        UUID id = UUID.randomUUID();
-        Venue existingVenue = new Venue("Nhà hát Lớn", "1 Tràng Tiền", "Hà Nội", null, null, 500);
-        existingVenue.setId(id);
-
-        VenueRequest updateRequest = new VenueRequest(
-                "Nhà hát Lớn", "1 Tràng Tiền Mới", "Hà Nội", null, null, 600
-        );
-
-        when(venueRepository.findById(id)).thenReturn(Optional.of(existingVenue));
-        when(venueRepository.existsByNameAndCity("Nhà hát Lớn", "Hà Nội")).thenReturn(true);
-        when(venueRepository.save(any(Venue.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        VenueResponse response = venueService.updateVenue(id, updateRequest);
-
-        assertNotNull(response);
-        assertEquals("1 Tràng Tiền Mới", response.address());
-        assertEquals(600, response.capacity());
-    }
-
-    @Test
-    @DisplayName("Xóa địa điểm (Soft Delete) - Đổi status thành INACTIVE")
-    void deleteVenue_Success() {
-        UUID id = UUID.randomUUID();
-        Venue venue = new Venue("Nhà hát Lớn", "1 Tràng Tiền", "Hà Nội", null, null, 500);
-        venue.setId(id);
-        venue.setStatus("ACTIVE");
-
-        when(venueRepository.findById(id)).thenReturn(Optional.of(venue));
-
-        venueService.deleteVenue(id);
-
-        assertEquals("INACTIVE", venue.getStatus());
-        verify(venueRepository, times(1)).save(venue);
-    }
 }
 

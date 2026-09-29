@@ -25,8 +25,8 @@ public class VenueController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','ORGANIZER')")
-    @Operation(summary = "Tạo địa điểm tổ chức sự kiện mới (Yêu cầu ADMIN hoặc ORGANIZER)")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    @Operation(summary = "Ban tổ chức tạo địa điểm để chọn cho sự kiện")
     public ApiResponse<VenueResponse> createVenue(@Valid @RequestBody VenueRequest request) {
         return ApiResponse.success(venueService.createVenue(request));
     }
@@ -49,22 +49,5 @@ public class VenueController {
         return ApiResponse.success(venueService.getVenuesByCity(city));
     }
 
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Cập nhật thông tin địa điểm theo ID (Yêu cầu ADMIN)")
-    public ApiResponse<VenueResponse> updateVenue(
-            @PathVariable UUID id,
-            @Valid @RequestBody VenueRequest request)
-    {
-        return ApiResponse.success(venueService.updateVenue(id, request));
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Xóa mềm địa điểm theo ID (Yêu cầu ADMIN)")
-    public ApiResponse<Void> deleteVenue(@PathVariable UUID id) {
-        venueService.deleteVenue(id);
-        return ApiResponse.ok("Xóa địa điểm thành công");
-    }
 }
 
