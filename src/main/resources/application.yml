@@ -95,6 +95,7 @@ app:
   storage:
     minio:
       endpoint: ${APP_MINIO_ENDPOINT:http://localhost:9000}
+      public-endpoint: ${APP_MINIO_PUBLIC_ENDPOINT:}
       access-key: ${APP_MINIO_ACCESS_KEY}
       secret-key: ${APP_MINIO_SECRET_KEY}
       bucket: ${APP_MINIO_BUCKET:smart-event}

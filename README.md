@@ -157,6 +157,7 @@ Thiết lập các biến môi trường quan trọng trong `.env`:
 * `JWT_SECRET`: Chuỗi khóa bí mật chuẩn Base64 (tối thiểu 32 ký tự ngẫu nhiên).
 * `SPRING_DATASOURCE_*`: Thông tin kết nối PostgreSQL (khớp với file `.env` của infra).
 * `VNPAY_*`: Mã Merchant (`TMN_CODE`) và chuỗi bảo mật (`HASH_SECRET`) từ cổng VNPay Sandbox.
+* `APP_MINIO_PUBLIC_ENDPOINT`: URL HTTPS của MinIO mà trình duyệt truy cập được khi triển khai; để trống khi chạy local. Backend vẫn dùng `APP_MINIO_ENDPOINT` nội bộ để tải lên/xóa file.
 * `APP_DOCS_PUBLIC`: Đặt `true` nếu muốn truy cập trực tiếp Swagger UI mà không cần đăng nhập Admin.
 
 ### 4. Chạy ứng dụng

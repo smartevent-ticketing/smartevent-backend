@@ -79,6 +79,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/seats/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/ticket-types/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/sale-phases/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/storage/*/presigned-url").permitAll()
 
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/organizer/**").hasAnyRole("ORGANIZER", "ADMIN")

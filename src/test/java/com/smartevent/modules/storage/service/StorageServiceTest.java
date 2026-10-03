@@ -36,6 +36,9 @@ class StorageServiceTest {
     private MinioClient minioClient; // Mock giả lập MinIO
 
     @Mock
+    private MinioClient presignedMinioClient;
+
+    @Mock
     private FileRepository fileRepository; // Mock giả lập Database
 
     @InjectMocks
@@ -44,9 +47,8 @@ class StorageServiceTest {
     @BeforeEach
     void setUp() {
         // Vì @Value("${app.storage.minio...}") không tự inject trong Unit Test,
-        // ta dùng ReflectionTestUtils để gán giá trị giả cho 2 biến này:
+        // ta dùng ReflectionTestUtils để gán giá trị giả cho bucket:
         ReflectionTestUtils.setField(storageService, "defaultBucket", "smart-event");
-        ReflectionTestUtils.setField(storageService, "endpoint", "http://localhost:9000");
     }
 
     @Test
@@ -66,6 +68,8 @@ class StorageServiceTest {
 
         // Dạy cho fileRepository giả: Khi save file bất kỳ -> trả về mockSavedEntity
         when(fileRepository.save(any(FileEntity.class))).thenReturn(mockSavedEntity);
+        when(presignedMinioClient.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
+                .thenReturn("https://media.example.com/smart-event/avatars/abc-123.png?signature=demo");
 
         // 2. ACT (Thực thi)
         FileUploadResponse response = storageService.uploadFile(mockFile, ownerId, "avatars", FileVisibility.PUBLIC);
@@ -74,8 +78,8 @@ class StorageServiceTest {
         assertNotNull(response);
         assertEquals("avatar.png", response.originName());
 
-        assertTrue(response.url().startsWith("http://localhost:9000/smart-event/avatars/"));
-        assertTrue(response.url().endsWith(".png"));
+        assertTrue(response.url().startsWith("https://media.example.com/smart-event/avatars/"));
+        verify(presignedMinioClient).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
 
         // Xác nhận fileRepository.save ĐÃ ĐƯỢC GỌI đúng 1 lần
         verify(fileRepository, times(1)).save(any(FileEntity.class));
@@ -119,6 +123,38 @@ class StorageServiceTest {
         });
 
         assertEquals(ErrorCode.ACCESS_DENIED, exception.getErrorCode());
+    }
+
+    @Test
+    void getPresignedUrl_PublicFile_AllowsAnonymous() throws Exception {
+        UUID fileId = UUID.randomUUID();
+        FileEntity publicFile = new FileEntity(
+                UUID.randomUUID(), "smart-event", "events/banner.jpg", "banner.jpg",
+                "image/jpeg", 1000L, null, FileVisibility.PUBLIC
+        );
+        when(fileRepository.findById(fileId)).thenReturn(Optional.of(publicFile));
+        when(presignedMinioClient.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
+                .thenReturn("https://media.example.com/smart-event/events/banner.jpg?signature=demo");
+
+        PresignedUrlResponse response = storageService.getPresignedUrl(fileId, null);
+
+        assertTrue(response.url().startsWith("https://media.example.com/"));
+    }
+
+    @Test
+    void getPresignedUrl_PrivateFile_RejectsAnonymous() {
+        UUID fileId = UUID.randomUUID();
+        FileEntity privateFile = new FileEntity(
+                UUID.randomUUID(), "smart-event", "tickets/ticket.pdf", "ticket.pdf",
+                "application/pdf", 1000L, null, FileVisibility.PRIVATE
+        );
+        when(fileRepository.findById(fileId)).thenReturn(Optional.of(privateFile));
+
+        FileException exception = assertThrows(FileException.class,
+                () -> storageService.getPresignedUrl(fileId, null));
+
+        assertEquals(ErrorCode.ACCESS_DENIED, exception.getErrorCode());
+        verifyNoInteractions(presignedMinioClient);
     }
 
     @Test

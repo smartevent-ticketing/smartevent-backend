@@ -17,9 +17,9 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,16 +31,24 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class StorageServiceImpl implements StorageService {
 
     private final MinioClient minioClient;
+    private final MinioClient presignedMinioClient;
     private final FileRepository fileRepository;
+
+    public StorageServiceImpl(
+            MinioClient minioClient,
+            @Qualifier("presignedMinioClient") MinioClient presignedMinioClient,
+            FileRepository fileRepository
+    ) {
+        this.minioClient = minioClient;
+        this.presignedMinioClient = presignedMinioClient;
+        this.fileRepository = fileRepository;
+    }
 
     @Value("${app.storage.minio.bucket}")
     private String defaultBucket;
-    @Value("${app.storage.minio.endpoint}")
-    private String endpoint;
 
     @Override
     @Transactional
@@ -114,14 +122,8 @@ public class StorageServiceImpl implements StorageService {
         FileEntity savedEntity = fileRepository.save(fileEntity);
 
         // 5. Xác định URL trả về
-        String fileUrl;
-        if (visibility == FileVisibility.PUBLIC) {
-            // File công khai: ghép endpoint + bucket + objectName
-            fileUrl = endpoint + "/" + defaultBucket + "/" + objectName;
-        } else {
-            // File riêng tư: sinh Presigned URL tạm thời
-            fileUrl = generatePresignedUrl(savedEntity.getBucketName(), savedEntity.getObjectName(), 15);
-        }
+        // Visibility controls who may request a URL; the bucket itself remains private.
+        String fileUrl = generatePresignedUrl(savedEntity.getBucketName(), savedEntity.getObjectName(), 15);
         return FileUploadResponse.of(savedEntity, fileUrl);
     }
 
@@ -197,7 +199,7 @@ public class StorageServiceImpl implements StorageService {
 
     private String generatePresignedUrl(String bucket, String objectName, int minutes) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            return presignedMinioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucket)
