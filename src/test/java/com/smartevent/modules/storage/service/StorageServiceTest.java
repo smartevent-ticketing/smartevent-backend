@@ -16,7 +16,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
@@ -41,11 +40,12 @@ class StorageServiceTest {
     @Mock
     private FileRepository fileRepository; // Mock giả lập Database
 
-    @InjectMocks
     private StorageServiceImpl storageService; // Service THẬT cần test
 
     @BeforeEach
     void setUp() {
+        // Both clients have the same type, so wire them explicitly instead of using @InjectMocks.
+        storageService = new StorageServiceImpl(minioClient, presignedMinioClient, fileRepository);
         // Vì @Value("${app.storage.minio...}") không tự inject trong Unit Test,
         // ta dùng ReflectionTestUtils để gán giá trị giả cho bucket:
         ReflectionTestUtils.setField(storageService, "defaultBucket", "smart-event");
@@ -79,7 +79,10 @@ class StorageServiceTest {
         assertEquals("avatar.png", response.originName());
 
         assertTrue(response.url().startsWith("https://media.example.com/smart-event/avatars/"));
+        verify(minioClient).putObject(any(PutObjectArgs.class));
+        verify(minioClient, never()).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
         verify(presignedMinioClient).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
+        verifyNoMoreInteractions(presignedMinioClient);
 
         // Xác nhận fileRepository.save ĐÃ ĐƯỢC GỌI đúng 1 lần
         verify(fileRepository, times(1)).save(any(FileEntity.class));
@@ -139,6 +142,8 @@ class StorageServiceTest {
         PresignedUrlResponse response = storageService.getPresignedUrl(fileId, null);
 
         assertTrue(response.url().startsWith("https://media.example.com/"));
+        verify(presignedMinioClient).getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class));
+        verifyNoInteractions(minioClient);
     }
 
     @Test
