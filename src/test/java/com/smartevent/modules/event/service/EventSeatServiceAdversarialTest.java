@@ -25,10 +25,23 @@ import static org.mockito.Mockito.*;
 
 /**
  * Adversarial test harness for Milestone 1 R2 Seat Map API verification.
- * Target: EventSeatServiceImpl.getAvailableSeatsByArea
+ * Target: EventSeatServiceImpl.getSeatMapByArea
  */
 @ExtendWith(MockitoExtension.class)
 class EventSeatServiceAdversarialTest {
+    @Test
+    void availabilityQueryIsSeparateFromTheFullSeatMap() {
+        UUID areaId = UUID.randomUUID();
+        when(eventAreaRepository.existsById(areaId)).thenReturn(true);
+        EventSeat seat = new EventSeat(areaId, "A", "01", "A-01", SeatStatus.AVAILABLE, null);
+        seat.setId(UUID.randomUUID());
+        when(eventSeatRepository.findByEventAreaIdAndStatusOrderByRowNameAscSeatNumberAsc(areaId, SeatStatus.AVAILABLE))
+            .thenReturn(List.of(seat));
+        var available = eventSeatService.getAvailableSeatsByArea(areaId);
+        assertEquals(1, available.size());
+        assertEquals(SeatStatus.AVAILABLE, available.get(0).status());
+        verify(eventSeatRepository, never()).findByEventAreaIdOrderByRowNameAscSeatNumberAsc(any());
+    }
 
     @Mock
     private EventRepository eventRepository;
@@ -52,8 +65,8 @@ class EventSeatServiceAdversarialTest {
     }
 
     @Test
-    @DisplayName("Adversarial: getAvailableSeatsByArea trả về đầy đủ 4 trạng thái (AVAILABLE, HELD, SOLD, BLOCKED)")
-    void getAvailableSeatsByArea_ReturnsAllFourStatuses_NoneDropped() {
+    @DisplayName("Adversarial: getSeatMapByArea trả về đầy đủ 4 trạng thái (AVAILABLE, HELD, SOLD, BLOCKED)")
+    void getSeatMapByArea_ReturnsAllFourStatuses_NoneDropped() {
         UUID areaId = UUID.randomUUID();
         when(eventAreaRepository.existsById(areaId)).thenReturn(true);
 
@@ -71,7 +84,7 @@ class EventSeatServiceAdversarialTest {
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of(seat1, seat2, seat3, seat4));
 
-        List<EventSeatResponse> result = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> result = eventSeatService.getSeatMapByArea(areaId);
 
         assertNotNull(result, "Response list must not be null");
         assertEquals(4, result.size(), "All 4 seats must be returned");
@@ -91,7 +104,7 @@ class EventSeatServiceAdversarialTest {
 
     @Test
     @DisplayName("Adversarial: Kiểm tra toàn vẹn các trường thông tin trả về (Response Fields Integrity)")
-    void getAvailableSeatsByArea_ResponseFieldsIntegrity() {
+    void getSeatMapByArea_ResponseFieldsIntegrity() {
         UUID areaId = UUID.randomUUID();
         UUID seatId = UUID.randomUUID();
         Instant holdExpiry = Instant.parse("2026-09-26T12:00:00Z");
@@ -104,7 +117,7 @@ class EventSeatServiceAdversarialTest {
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of(seat));
 
-        List<EventSeatResponse> result = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> result = eventSeatService.getSeatMapByArea(areaId);
 
         assertEquals(1, result.size());
         EventSeatResponse response = result.get(0);
@@ -120,7 +133,7 @@ class EventSeatServiceAdversarialTest {
 
     @Test
     @DisplayName("Adversarial: Đảm bảo thứ tự sắp xếp RowName ASC, SeatNumber ASC được bảo toàn")
-    void getAvailableSeatsByArea_PreservesAscendingOrder() {
+    void getSeatMapByArea_PreservesAscendingOrder() {
         UUID areaId = UUID.randomUUID();
         when(eventAreaRepository.existsById(areaId)).thenReturn(true);
 
@@ -136,7 +149,7 @@ class EventSeatServiceAdversarialTest {
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of(s1, s2, s3, s4));
 
-        List<EventSeatResponse> result = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> result = eventSeatService.getSeatMapByArea(areaId);
 
         assertEquals(4, result.size());
         assertEquals("A-01", result.get(0).label());
@@ -149,7 +162,7 @@ class EventSeatServiceAdversarialTest {
 
     @Test
     @DisplayName("Adversarial: Phân khu không còn ghế trống nào (0 AVAILABLE) vẫn trả về toàn bộ ghế HELD/SOLD/BLOCKED")
-    void getAvailableSeatsByArea_ZeroAvailableSeats_StillReturnsAllSeats() {
+    void getSeatMapByArea_ZeroAvailableSeats_StillReturnsAllSeats() {
         UUID areaId = UUID.randomUUID();
         when(eventAreaRepository.existsById(areaId)).thenReturn(true);
 
@@ -163,7 +176,7 @@ class EventSeatServiceAdversarialTest {
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of(s1, s2, s3));
 
-        List<EventSeatResponse> result = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> result = eventSeatService.getSeatMapByArea(areaId);
 
         assertEquals(3, result.size());
         assertTrue(result.stream().noneMatch(s -> s.status() == SeatStatus.AVAILABLE),
@@ -175,13 +188,13 @@ class EventSeatServiceAdversarialTest {
 
     @Test
     @DisplayName("Adversarial: Phân khu tồn tại nhưng không có ghế nào trả về danh sách rỗng (không null, không lỗi)")
-    void getAvailableSeatsByArea_EmptyArea_ReturnsEmptyList() {
+    void getSeatMapByArea_EmptyArea_ReturnsEmptyList() {
         UUID areaId = UUID.randomUUID();
         when(eventAreaRepository.existsById(areaId)).thenReturn(true);
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of());
 
-        List<EventSeatResponse> result = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> result = eventSeatService.getSeatMapByArea(areaId);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -189,12 +202,12 @@ class EventSeatServiceAdversarialTest {
 
     @Test
     @DisplayName("Adversarial: Phân khu không tồn tại ném RESOURCE_NOT_FOUND")
-    void getAvailableSeatsByArea_AreaNotFound_ThrowsResourceNotFound() {
+    void getSeatMapByArea_AreaNotFound_ThrowsResourceNotFound() {
         UUID nonExistentAreaId = UUID.randomUUID();
         when(eventAreaRepository.existsById(nonExistentAreaId)).thenReturn(false);
 
         EventException ex = assertThrows(EventException.class, () ->
-                eventSeatService.getAvailableSeatsByArea(nonExistentAreaId)
+                eventSeatService.getSeatMapByArea(nonExistentAreaId)
         );
 
         assertEquals(ErrorCode.RESOURCE_NOT_FOUND, ex.getErrorCode());

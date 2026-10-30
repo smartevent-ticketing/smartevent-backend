@@ -1,5 +1,6 @@
 package com.smartevent.modules.event.service.impl;
 
+import com.smartevent.modules.event.dto.request.PublicSearchFilter;
 import com.smartevent.common.api.PageResponse;
 import com.smartevent.common.enums.EventStatus;
 import com.smartevent.common.error.ErrorCode;
@@ -17,6 +18,8 @@ import com.smartevent.modules.event.repository.EventFileRepository;
 import com.smartevent.modules.event.repository.EventRepository;
 import com.smartevent.modules.event.repository.VenueRepository;
 import java.time.Instant;
+import java.time.Clock;
+import com.smartevent.modules.event.dto.response.PriceEvidence;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EventQueryService {
 
+    private final Clock clock;
     private final EventRepository eventRepository;
     private final CategoryRepository categoryRepository;
     private final VenueRepository venueRepository;
@@ -69,15 +73,46 @@ public class EventQueryService {
 
     @Transactional(readOnly = true)
     public PageResponse<EventResponse> getPublishedEvents(Pageable pageable) {
-        Page<Event> eventPage = eventRepository.findByStatusAndEndTimeAfter(EventStatus.PUBLISHED, Instant.now(), pageable);
+        Page<Event> eventPage = eventRepository.findByStatusAndEndTimeAfter(EventStatus.PUBLISHED, clock.instant(), pageable);
 
         return PageResponse.from(eventPage, toResponses(eventPage.getContent()));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId) {
-        Page<Event> eventPage = eventRepository.searchPublished(Instant.now(), searchPattern(keyword), searchPattern(city), categoryId, pageable);
-        return PageResponse.from(eventPage, toResponses(eventPage.getContent()));
+        Instant now = clock.instant();
+        int pageNumber = Math.max(0, pageable.getPageNumber());
+        int pageSize = Math.max(1, Math.min(pageable.getPageSize(), 100));
+        var stable = org.springframework.data.domain.PageRequest.of(pageNumber,
+            pageSize, org.springframework.data.domain.Sort.by("startTime", "id"));
+        Page<Event> page = eventRepository.searchPublished(now, searchPattern(keyword), searchPattern(city), categoryId, stable);
+        return projectWithPrices(page, now, null, "LTE");
+    }
+
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<EventResponse> searchPublishedEvents(
+            Pageable pageable, String keyword, String city, UUID categoryId,
+            PublicSearchFilter filter) {
+        Instant now = clock.instant();
+        int pageNumber = Math.max(0, pageable.getPageNumber());
+        int pageSize = Math.max(1, Math.min(pageable.getPageSize(), 100));
+        var stablePage = org.springframework.data.domain.PageRequest.of(pageNumber,
+            pageSize, org.springframework.data.domain.Sort.by("startTime", "id"));
+        Page<Event> page = eventRepository.searchPublishedFiltered(now, searchPattern(keyword), searchPattern(city),
+            categoryId, filter.startFrom(), filter.startBefore(), filter.maxPrice(), filter.priceComparison(), stablePage);
+        return projectWithPrices(page, now, filter.maxPrice(), filter.priceComparison());
+    }
+
+    private PageResponse<EventResponse> projectWithPrices(Page<Event> page, Instant now,
+            java.math.BigDecimal maxPrice, String comparison) {
+        Map<UUID, PriceEvidence> prices = new HashMap<>();
+        if (!page.isEmpty()) {
+            for (var evidence : eventRepository.findPriceEvidence(page.getContent().stream().map(Event::getId).toList(),
+                    now, maxPrice, comparison)) prices.putIfAbsent(evidence.eventId(), evidence);
+        }
+        var data = toResponses(page.getContent()).stream().map(e ->
+            e.withPrice(prices.get(e.id()), now)).toList();
+        return PageResponse.from(page, data);
     }
 
     private String searchPattern(String value) {

@@ -22,6 +22,7 @@ import java.util.UUID;
 public class EventAreaController {
 
     private final EventAreaService eventAreaService;
+    private final com.smartevent.modules.event.service.EventReadAccess readAccess;
 
     @PostMapping("/api/v1/events/{eventId}/areas")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
@@ -38,12 +39,14 @@ public class EventAreaController {
     @GetMapping("/api/v1/events/{eventId}/areas")
     @Operation(summary = "Lấy danh sách tất cả các phân khu của một sự kiện")
     public ApiResponse<List<EventAreaResponse>> getAreasByEventId(@PathVariable UUID eventId) {
+        readAccess.requireEvent(eventId);
         return ApiResponse.success(eventAreaService.getAreasByEventId(eventId));
     }
 
     @GetMapping("/api/v1/areas/{id}")
     @Operation(summary = "Lấy thông tin chi tiết một phân khu theo ID")
     public ApiResponse<EventAreaResponse> getAreaById(@PathVariable UUID id) {
+        readAccess.requireArea(id);
         return ApiResponse.success(eventAreaService.getAreaById(id));
     }
 

@@ -44,6 +44,9 @@ class SalePhaseLifecycleWorkerTest {
     @Mock
     private InventoryCounterRepository inventoryCounterRepository;
 
+    @Mock
+    private java.time.Clock clock;
+
     @InjectMocks
     private SalePhaseLifecycleWorker worker;
 
@@ -68,6 +71,7 @@ class SalePhaseLifecycleWorkerTest {
         sampleTicketType.setId(ticketTypeId);
 
         Instant now = Instant.now();
+        lenient().when(clock.instant()).thenReturn(now);
         samplePhase = new TicketSalePhase(
                 ticketTypeId, "Early Bird", BigDecimal.valueOf(500000), 100,
                 now.minus(1, ChronoUnit.HOURS), now.plus(2, ChronoUnit.DAYS),

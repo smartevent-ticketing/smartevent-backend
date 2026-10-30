@@ -1,5 +1,6 @@
 package com.smartevent.modules.event.service.impl;
 
+import com.smartevent.modules.event.dto.request.PublicSearchFilter;
 import com.smartevent.common.api.PageResponse;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import com.smartevent.modules.event.dto.request.UpdateEventRequest;
@@ -51,6 +52,13 @@ public class EventServiceImpl implements EventService {
     @Override
     public PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId) {
         return eventQueryService.searchPublishedEvents(pageable, keyword, city, categoryId);
+    }
+
+    @Override
+    public PageResponse<EventResponse> searchPublishedEvents(
+            Pageable pageable, String keyword, String city, UUID categoryId,
+            PublicSearchFilter filter) {
+        return eventQueryService.searchPublishedEvents(pageable, keyword, city, categoryId, filter);
     }
 
     @Override

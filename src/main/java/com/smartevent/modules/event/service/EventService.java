@@ -1,5 +1,6 @@
 package com.smartevent.modules.event.service;
 
+import com.smartevent.modules.event.dto.request.PublicSearchFilter;
 import com.smartevent.common.api.PageResponse;
 import com.smartevent.modules.event.dto.request.CreateEventRequest;
 import com.smartevent.modules.event.dto.request.UpdateEventRequest;
@@ -21,6 +22,10 @@ public interface EventService {
     PageResponse<EventResponse> getPublishedEvents(Pageable pageable);
 
     PageResponse<EventResponse> searchPublishedEvents(Pageable pageable, String keyword, String city, UUID categoryId);
+
+    PageResponse<EventResponse> searchPublishedEvents(
+        Pageable pageable, String keyword, String city, UUID categoryId,
+        PublicSearchFilter filter);
 
     PageResponse<EventResponse> getEventsByOrganizer(UUID organizerId, Pageable pageable);
 

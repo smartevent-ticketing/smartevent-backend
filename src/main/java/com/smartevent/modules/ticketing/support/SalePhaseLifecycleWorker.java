@@ -29,11 +29,12 @@ public class SalePhaseLifecycleWorker {
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
     private final InventoryCounterRepository inventoryCounterRepository;
+    private final java.time.Clock clock;
 
     @Scheduled(fixedRate = 30000)
     @Transactional
     public void processSalePhaseLifecycle() {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         // 1. Chuyển SCHEDULED -> ACTIVE khi đến giờ mở bán và sự kiện đã PUBLISHED
         List<TicketSalePhase> scheduledPhases = ticketSalePhaseRepository
@@ -83,6 +84,9 @@ public class SalePhaseLifecycleWorker {
         if (phases == null || phases.isEmpty()) return;
         for (TicketSalePhase phase : phases) {
             try {
+                if (phase.getSoldOutAt() != null) {
+                    continue;
+                }
                 Optional<TicketType> ticketTypeOpt = ticketTypeRepository.findById(phase.getTicketTypeId());
                 if (ticketTypeOpt.isPresent()) {
                     Optional<Event> eventOpt = eventRepository.findById(ticketTypeOpt.get().getEventId());

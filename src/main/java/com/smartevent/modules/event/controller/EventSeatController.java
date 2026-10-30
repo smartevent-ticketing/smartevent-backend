@@ -27,6 +27,7 @@ import java.util.UUID;
 public class EventSeatController {
 
     private final EventSeatService eventSeatService;
+    private final com.smartevent.modules.event.service.EventReadAccess readAccess;
 
     @PostMapping("/api/v1/areas/{areaId}/seats/generate")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
@@ -46,13 +47,17 @@ public class EventSeatController {
             @PathVariable UUID areaId,
             @PageableDefault(size = 1000, sort = {"rowName", "seatNumber"}, direction = Sort.Direction.ASC) Pageable pageable
     ) {
+        readAccess.requireArea(areaId);
         return ApiResponse.success(eventSeatService.getSeatsByArea(areaId, pageable));
     }
 
     @GetMapping("/api/v1/areas/{areaId}/seats/available")
     @Operation(summary = "Lấy danh sách các ghế đang còn trống (AVAILABLE) để người dùng chọn mua")
-    public ApiResponse<List<EventSeatResponse>> getAvailableSeatsByArea(@PathVariable UUID areaId) {
-        return ApiResponse.success(eventSeatService.getAvailableSeatsByArea(areaId));
+    public ApiResponse<List<EventSeatResponse>> getAvailableSeatsByArea(@PathVariable UUID areaId,
+            @RequestParam(defaultValue = "false") boolean includeUnavailable) {
+        readAccess.requireArea(areaId);
+        return ApiResponse.success(includeUnavailable ? eventSeatService.getSeatMapByArea(areaId)
+                : eventSeatService.getAvailableSeatsByArea(areaId));
     }
 
     @PostMapping("/api/v1/areas/{areaId}/seats")

@@ -104,6 +104,17 @@ public class EventSeatServiceImpl implements EventSeatService {
             throw new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy khu vực");
         }
 
+        List<EventSeat> seats = eventSeatRepository.findByEventAreaIdAndStatusOrderByRowNameAscSeatNumberAsc(areaId, SeatStatus.AVAILABLE);
+
+        return seats.stream().map(EventSeatResponse::from).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventSeatResponse> getSeatMapByArea(UUID areaId) {
+        if (!eventAreaRepository.existsById(areaId)) {
+            throw new EventException(ErrorCode.RESOURCE_NOT_FOUND, "Area not found");
+        }
         List<EventSeat> seats = eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId);
 
         return seats.stream()

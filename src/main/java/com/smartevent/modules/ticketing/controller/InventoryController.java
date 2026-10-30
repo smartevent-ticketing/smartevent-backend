@@ -19,16 +19,24 @@ import java.util.UUID;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final com.smartevent.modules.ticketing.support.ChildEventReadAccess readAccess;
 
     @GetMapping("/api/v1/sale-phases/{salePhaseId}/inventory")
     @Operation(summary = "Tra cứu số lượng tồn kho vé thời gian thực của một đợt mở bán")
     public ApiResponse<InventoryCounterResponse> getCounterBySalePhaseId(@PathVariable UUID salePhaseId) {
+        readAccess.requirePhase(salePhaseId);
         return ApiResponse.success(inventoryService.getCounterBySalePhaseId(salePhaseId));
     }
 
     @GetMapping("/api/v1/events/{eventId}/inventory")
     @Operation(summary = "Tra cứu số lượng tồn kho vé thời gian thực của toàn bộ sự kiện")
     public ApiResponse<List<InventoryCounterResponse>> getCountersByEventId(@PathVariable UUID eventId) {
-        return ApiResponse.success(inventoryService.getCountersByEventId(eventId));
+        boolean privileged = readAccess.requireEvent(eventId);
+        var data = inventoryService.getCountersByEventId(eventId);
+        if (!privileged) {
+            var allowed = readAccess.publicPhaseIds(eventId);
+            data = data.stream().filter(c -> allowed.contains(c.salePhaseId())).toList();
+        }
+        return ApiResponse.success(data);
     }
 }

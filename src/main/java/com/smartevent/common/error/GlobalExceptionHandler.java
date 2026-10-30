@@ -18,6 +18,15 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler({org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception exception, HttpServletRequest request) {
+        ErrorCode error = ErrorCode.VALIDATION_ERROR;
+        return ResponseEntity.status(error.httpStatus()).body(
+                ErrorResponse.of(error.code(), error.defaultMessage(), request.getRequestURI()));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(
             MaxUploadSizeExceededException exception,

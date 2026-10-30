@@ -55,8 +55,16 @@ public class EventController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) java.time.Instant startFrom,
+            @RequestParam(required = false) java.time.Instant startBefore,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(required = false) String priceComparison,
             @PageableDefault(size = 10, sort = "startTime", direction = Sort.Direction.ASC) Pageable pageable
     ) {
+        if (startFrom != null || startBefore != null || maxPrice != null || priceComparison != null) {
+            return ApiResponse.success(eventService.searchPublishedEvents(pageable, q, city, categoryId,
+                new com.smartevent.modules.event.dto.request.PublicSearchFilter(startFrom, startBefore, maxPrice, priceComparison)));
+        }
         return ApiResponse.success(eventService.searchPublishedEvents(pageable, q, city, categoryId));
     }
 

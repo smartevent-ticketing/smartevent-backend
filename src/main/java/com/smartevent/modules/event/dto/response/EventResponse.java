@@ -29,7 +29,13 @@ public record EventResponse(
         Integer maxTicketsPerUser,
         Instant publishedAt,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        BigDecimal price,
+        String currency,
+        UUID ticketTypeId,
+        UUID salePhaseId,
+        Instant priceObservedAt,
+        String priceBasis
 ) {
     public static EventResponse of(
             Event event,
@@ -58,8 +64,16 @@ public record EventResponse(
                 event.getMaxTicketsPerUser(),
                 event.getPublishedAt(),
                 event.getCreatedAt(),
-                event.getUpdatedAt()
+                event.getUpdatedAt(), null, null, null, null, null, null
         );
+    }
+
+    public EventResponse withPrice(PriceEvidence evidence, Instant observedAt) {
+        if (evidence == null) return this;
+        return new EventResponse(id, organizerId, name, slug, description, venue, categories, files,
+            startTime, endTime, status, city, resaleEnabled, maxResalePriceMultiplier, resaleDeadlineHoursBefore,
+            virtualQueueEnabled, queueBatchSize, maxTicketsPerUser, publishedAt, createdAt, updatedAt, evidence.price(), "VND",
+            evidence.ticketTypeId(), evidence.salePhaseId(), observedAt, "TICKET_FACE_VALUE");
     }
 
     public static EventResponse from(Event event) {

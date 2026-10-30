@@ -1,34 +1,30 @@
 package com.smartevent;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.Tag;
+import org.flywaydb.core.Flyway;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.util.List;
-import java.util.Map;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+/** Migration verification owns a disposable DB, never the application's configured database. */
+@Tag("postgres")
 class SmartEventApplicationTests {
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @Test
     void verifyMigrations() {
-        System.out.println("=== FLYWAY MIGRATION HISTORY ===");
-        List<Map<String, Object>> history = jdbcTemplate.queryForList(
-                "SELECT installed_rank, version, description, type, script, success FROM flyway_schema_history ORDER BY installed_rank"
-        );
-        history.forEach(row -> System.out.println(row));
-
-        System.out.println("\n=== DATABASE TABLES CREATED ===");
-        List<String> tables = jdbcTemplate.queryForList(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name",
-                String.class
-        );
-        System.out.println("Total tables: " + tables.size());
-        tables.forEach(table -> System.out.println(" - " + table));
+        try (var database = new PostgreSQLContainer("postgres:16-alpine").withDatabaseName("migration_test")) {
+            database.start();
+            var source = new DriverManagerDataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword());
+            var flyway = Flyway.configure().dataSource(source).locations("classpath:db/migration").load();
+            assertTrue(flyway.migrate().migrationsExecuted > 0);
+            flyway.validate();
+            var jdbc = new JdbcTemplate(source);
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success", Integer.class));
+            assertTrue(jdbc.queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'", Integer.class) > 1);
+        }
     }
 }
 

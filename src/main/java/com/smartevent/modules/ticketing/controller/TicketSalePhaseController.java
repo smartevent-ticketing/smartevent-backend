@@ -26,6 +26,7 @@ import java.util.UUID;
 public class TicketSalePhaseController {
 
     private final TicketSalePhaseService ticketSalePhaseService;
+    private final com.smartevent.modules.ticketing.support.ChildEventReadAccess readAccess;
 
     @PostMapping("/api/v1/ticket-types/{ticketTypeId}/sale-phases")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
@@ -42,18 +43,31 @@ public class TicketSalePhaseController {
     @GetMapping("/api/v1/ticket-types/{ticketTypeId}/sale-phases")
     @Operation(summary = "Lấy danh sách các đợt mở bán của một loại vé")
     public ApiResponse<List<TicketSalePhaseResponse>> getSalePhasesByTicketTypeId(@PathVariable UUID ticketTypeId) {
-        return ApiResponse.success(ticketSalePhaseService.getSalePhasesByTicketTypeId(ticketTypeId));
+        boolean privileged = readAccess.requireType(ticketTypeId);
+        var data = ticketSalePhaseService.getSalePhasesByTicketTypeId(ticketTypeId);
+        if (!privileged) {
+            var allowed = readAccess.publicTypePhaseIds(ticketTypeId);
+            data = data.stream().filter(p -> allowed.contains(p.id())).toList();
+        }
+        return ApiResponse.success(data);
     }
 
     @GetMapping("/api/v1/events/{eventId}/sale-phases")
     @Operation(summary = "Lấy danh sách tất cả các đợt mở bán của một sự kiện")
     public ApiResponse<List<TicketSalePhaseResponse>> getSalePhasesByEventId(@PathVariable UUID eventId) {
-        return ApiResponse.success(ticketSalePhaseService.getSalePhasesByEventId(eventId));
+        boolean privileged = readAccess.requireEvent(eventId);
+        var data = ticketSalePhaseService.getSalePhasesByEventId(eventId);
+        if (!privileged) {
+            var allowed = readAccess.publicPhaseIds(eventId);
+            data = data.stream().filter(p -> allowed.contains(p.id())).toList();
+        }
+        return ApiResponse.success(data);
     }
 
     @GetMapping("/api/v1/sale-phases/{id}")
     @Operation(summary = "Lấy thông tin chi tiết một đợt mở bán theo ID")
     public ApiResponse<TicketSalePhaseResponse> getSalePhaseById(@PathVariable UUID id) {
+        readAccess.requirePhase(id);
         return ApiResponse.success(ticketSalePhaseService.getSalePhaseById(id));
     }
 

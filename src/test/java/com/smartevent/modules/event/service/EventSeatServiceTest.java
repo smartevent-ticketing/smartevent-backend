@@ -264,8 +264,8 @@ class EventSeatServiceTest {
     }
 
     @Test
-    @DisplayName("R2: getAvailableSeatsByArea trả về toàn bộ ghế trong khu vực với trạng thái thực tế (AVAILABLE, HELD, SOLD)")
-    void getAvailableSeatsByArea_ReturnsAllSeatsWithActualStatus() {
+    @DisplayName("R2: getSeatMapByArea trả về toàn bộ ghế trong khu vực với trạng thái thực tế (AVAILABLE, HELD, SOLD)")
+    void getSeatMapByArea_ReturnsAllSeatsWithActualStatus() {
         UUID areaId = UUID.randomUUID();
 
         when(eventAreaRepository.existsById(areaId)).thenReturn(true);
@@ -280,7 +280,7 @@ class EventSeatServiceTest {
         when(eventSeatRepository.findByEventAreaIdOrderByRowNameAscSeatNumberAsc(areaId))
                 .thenReturn(List.of(seat1, seat2, seat3));
 
-        List<EventSeatResponse> seats = eventSeatService.getAvailableSeatsByArea(areaId);
+        List<EventSeatResponse> seats = eventSeatService.getSeatMapByArea(areaId);
 
         assertNotNull(seats);
         assertEquals(3, seats.size());

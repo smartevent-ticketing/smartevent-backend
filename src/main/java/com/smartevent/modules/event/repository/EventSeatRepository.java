@@ -22,6 +22,8 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, UUID> {
 
     List<EventSeat> findByEventAreaIdAndStatus(UUID eventAreaId, SeatStatus status);
 
+    List<EventSeat> findByEventAreaIdAndStatusOrderByRowNameAscSeatNumberAsc(UUID eventAreaId, SeatStatus status);
+
     boolean existsByEventAreaIdAndRowNameAndSeatNumber(UUID eventAreaId, String rowName, String seatNumber);
 
     long countByEventAreaId(UUID eventAreaId);

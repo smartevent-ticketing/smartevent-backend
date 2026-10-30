@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface EventSeatService {
 
+    List<EventSeatResponse> getSeatMapByArea(UUID areaId);
+
     List<EventSeatResponse> generateSeats(UUID areaId, UUID currentUserId, boolean isAdmin, GenerateSeatsRequest request);
 
     PageResponse<EventSeatResponse> getSeatsByArea(UUID areaId, Pageable pageable);

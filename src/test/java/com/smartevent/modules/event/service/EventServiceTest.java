@@ -74,6 +74,7 @@ class EventServiceTest {
                         eventFileRepository,
                         eventCategoryRepository,
                         new EventQueryService(
+                                java.time.Clock.systemUTC(),
                                 eventRepository,
                                 categoryRepository,
                                 venueRepository,
@@ -84,6 +85,7 @@ class EventServiceTest {
                         eventRepository,
                         eventCategoryRepository,
                         new EventQueryService(
+                                java.time.Clock.systemUTC(),
                                 eventRepository,
                                 categoryRepository,
                                 venueRepository,
@@ -96,6 +98,7 @@ class EventServiceTest {
                         ticketTypeRepository,
                         ticketSalePhaseRepository),
                 new EventQueryService(
+                                java.time.Clock.systemUTC(),
                         eventRepository,
                         categoryRepository,
                         venueRepository,

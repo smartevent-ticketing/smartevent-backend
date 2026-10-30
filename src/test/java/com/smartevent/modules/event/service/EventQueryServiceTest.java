@@ -26,6 +26,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class EventQueryServiceTest {
+    @org.mockito.Spy java.time.Clock clock = java.time.Clock.systemUTC();
     @Mock EventRepository eventRepository;
     @Mock CategoryRepository categoryRepository;
     @Mock VenueRepository venueRepository;

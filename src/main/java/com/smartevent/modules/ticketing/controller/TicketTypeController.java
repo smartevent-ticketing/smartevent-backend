@@ -22,6 +22,7 @@ import java.util.UUID;
 public class TicketTypeController {
 
     private final TicketTypeService ticketTypeService;
+    private final com.smartevent.modules.ticketing.support.ChildEventReadAccess readAccess;
 
     @PostMapping("/api/v1/events/{eventId}/ticket-types")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
@@ -38,18 +39,25 @@ public class TicketTypeController {
     @GetMapping("/api/v1/events/{eventId}/ticket-types")
     @Operation(summary = "Lấy danh sách tất cả các hạng vé của một sự kiện")
     public ApiResponse<List<TicketTypeResponse>> getTicketTypesByEventId(@PathVariable UUID eventId) {
-        return ApiResponse.success(ticketTypeService.getTicketTypesByEventId(eventId));
+        boolean privileged = readAccess.requireEvent(eventId);
+        var data = ticketTypeService.getTicketTypesByEventId(eventId);
+        if (!privileged) data = data.stream().filter(t -> t.status() == com.smartevent.common.enums.TicketTypeStatus.ACTIVE).toList();
+        return ApiResponse.success(data);
     }
 
     @GetMapping("/api/v1/areas/{areaId}/ticket-types")
     @Operation(summary = "Lấy danh sách các hạng vé thuộc một phân khu cụ thể")
     public ApiResponse<List<TicketTypeResponse>> getTicketTypesByAreaId(@PathVariable UUID areaId) {
-        return ApiResponse.success(ticketTypeService.getTicketTypesByAreaId(areaId));
+        boolean privileged = readAccess.requireArea(areaId);
+        var data = ticketTypeService.getTicketTypesByAreaId(areaId);
+        if (!privileged) data = data.stream().filter(t -> t.status() == com.smartevent.common.enums.TicketTypeStatus.ACTIVE).toList();
+        return ApiResponse.success(data);
     }
 
     @GetMapping("/api/v1/ticket-types/{id}")
     @Operation(summary = "Lấy thông tin chi tiết một hạng vé theo ID")
     public ApiResponse<TicketTypeResponse> getTicketTypeById(@PathVariable UUID id) {
+        readAccess.requireType(id);
         return ApiResponse.success(ticketTypeService.getTicketTypeById(id));
     }
 
