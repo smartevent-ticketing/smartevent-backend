@@ -201,6 +201,29 @@ class BackendPostgresTest {
         assertEquals(SalePhaseStatus.ACTIVE, bean(TicketSalePhaseRepository.class).findById(fixtures.get(3).phase()).orElseThrow().getStatus());
     }
 
+    @Test void publicSearchAcceptsNullOptionalFiltersOnPostgres() {
+        Fixture fixture = fixture();
+        Instant now = Instant.now();
+        String marker = "nullable-filters-" + UUID.randomUUID();
+        tx.executeWithoutResult(status -> {
+            Event event = bean(EventRepository.class).findById(fixture.event()).orElseThrow();
+            event.setName(marker);
+            bean(EventRepository.class).save(event);
+        });
+        var repository = bean(EventRepository.class);
+        var page = org.springframework.data.domain.PageRequest.of(0, 10);
+        assertTrue(repository.searchPublished(now, null, null, null, page).getTotalElements() >= 1);
+        assertTrue(repository.searchPublishedFiltered(
+                now, null, null, null, null, null, null, "LTE", page).getTotalElements() >= 1);
+        var unfiltered = repository.searchPublishedFiltered(
+                now, "%" + marker + "%", null, null, null, null, null, "LTE", page);
+        assertEquals(1, unfiltered.getTotalElements());
+        assertEquals(fixture.event(), unfiltered.getContent().get(0).getId());
+        assertEquals(1, repository.findPriceEvidence(List.of(fixture.event()), now, null, "LTE").size());
+        assertTrue(repository.searchPublishedFiltered(
+                now, "%" + marker + "%", null, UUID.randomUUID(), null, null, null, "LTE", page).isEmpty());
+    }
+
     @Test void publicSearchRoundTripsDoNotGrowWithPageCardinality() {
         Instant now = Instant.now();
         String marker = "query-count-" + UUID.randomUUID();

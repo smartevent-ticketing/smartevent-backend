@@ -41,7 +41,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
                or exists (select v from Venue v where v.id = e.venueId and lower(v.name) like :keyword))
           and (:city is null or lower(coalesce(e.city, '')) like :city
                or exists (select v from Venue v where v.id = e.venueId and lower(v.city) like :city))
-          and (cast(:categoryId as UUID) is null or exists (select ec from EventCategory ec
+          and (cast(:categoryId as java.util.UUID) is null or exists (select ec from EventCategory ec
                where ec.id.eventId = e.id and ec.id.categoryId = :categoryId))
     """)
     Page<Event> searchPublished(
@@ -61,11 +61,11 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
                or exists (select v from Venue v where v.id = e.venueId and lower(v.name) like :keyword))
           and (:city is null or lower(coalesce(e.city, '')) like :city
                or exists (select v from Venue v where v.id = e.venueId and lower(v.city) like :city))
-          and (cast(:categoryId as UUID) is null or exists (select ec from EventCategory ec
+          and (cast(:categoryId as java.util.UUID) is null or exists (select ec from EventCategory ec
                where ec.id.eventId = e.id and ec.id.categoryId = :categoryId))
-          and (cast(:startFrom as Instant) is null or e.startTime >= :startFrom)
-          and (cast(:startBefore as Instant) is null or e.startTime < :startBefore)
-          and (cast(:maxPrice as BigDecimal) is null or exists (
+          and (cast(:startFrom as java.time.Instant) is null or e.startTime >= :startFrom)
+          and (cast(:startBefore as java.time.Instant) is null or e.startTime < :startBefore)
+          and (cast(:maxPrice as java.math.BigDecimal) is null or exists (
             select p.id from TicketType t, TicketSalePhase p, InventoryCounter ic
             where t.eventId = e.id and p.ticketTypeId = t.id and ic.salePhaseId = p.id
               and t.status = com.smartevent.common.enums.TicketTypeStatus.ACTIVE
@@ -89,7 +89,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
           and p.status = com.smartevent.common.enums.SalePhaseStatus.ACTIVE
           and p.soldOutAt is null and p.saleStartAt <= :now and p.saleEndAt >= :now
           and (ic.totalQuantity - ic.heldQuantity - ic.soldQuantity) > 0
-          and (cast(:maxPrice as BigDecimal) is null or (:comparison = 'LT' and p.price < :maxPrice)
+          and (cast(:maxPrice as java.math.BigDecimal) is null or (:comparison = 'LT' and p.price < :maxPrice)
             or (:comparison = 'LTE' and p.price <= :maxPrice))
         order by p.price asc, p.id asc
     """)
